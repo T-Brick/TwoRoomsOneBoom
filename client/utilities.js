@@ -16,3 +16,10 @@ var getCookie = function(name) {
     }
     return "";
 };
+
+var copyLink = function() {
+    var copyText = document.getElementById("copylink");
+    copyText.select();
+    copyText.setSelectionRange(0, 99999)
+    document.execCommand("copy");
+  }

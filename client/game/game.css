@@ -5,12 +5,48 @@ body {
 .box {
     background: white;
     width: 60%;
-    height: 60%;
+    min-height: 60%;
     border-radius: 6px;
     margin: 5% auto auto auto;
     padding: 10px;
-    text-align: center;
     box-shadow: 5px 5px 10px #888888;
+}
+
+.row {
+    height: 60%;
+}
+.column {
+    float: left;
+    width: 50%;
+    padding: 15px;
+}
+
+/* Clear floats after the columns */
+.box:after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+/* Responsive layout - makes the three columns stack on top of each other instead of next to each other */
+@media screen and (max-width:600px) {
+    .column {
+      width: 100%;
+    }
+  }
+
+.header {
+    text-align: center;
+}
+
+.title {
+    font-weight: bold;
+    font-size: 20px;
+    margin-bottom: 5px;
+}
+
+#copylink {
+    width: 40%;
 }
 
 .btn {
@@ -22,6 +58,23 @@ body {
 
 .btn:hover {
     background: #2CC06B;
+}
+
+table {
+    border-collapse: collapse;
+    margin-left: 5%;
+}
+
+.playersList tr, td, th {
+    border: 1px solid black;
+    margin-left: 5%;
+    align-content: left;
+}
+
+.playersTitle {
+    align-content: left;
+    text-align: left;
+    margin-bottom: 15px;
 }
 
 input {

@@ -10,18 +10,24 @@
     <script src="../client/utilities.js"></script>
 </head>
 
-<body>
+<body onload="joinGame()">
     <div class="box">
-        <div>Game lobby</div>
-        <form id="join-form">
-            <p>
-                <input id="name-input" type="text" style="width:30%;height:30px;" placeholder="NAME" autocomplete="off"></input>
-            </p>
-            <p>
-                <input id="room-input" type="text" style="width:30%;height:30px;" placeholder="ROOM" autocomplete="off"></input>
-            </p>
-            <input class="btn" type="submit" value="Join"></input>
-        </form>
+        <div class="header">
+            <div class="title">Pre-Game Lobby</div>
+            <div class="link">
+                Lobby Link:
+                <input id="copylink" type="text" readonly=true onfocus="this.select()"></input>
+                <input id="copybtn" class="btn" type="button" value="Copy" onclick="copyLink()"></input>
+            </div>
+        </div>
+        <div class="row">
+            <div class="column">
+                <div id="playersTitle"></div>
+                <div id="playersList"></div>
+            </div>
+            <div class="column">
+            </div>
+        </div>
     </div>
     <script src="../client/game/game.js"></script>
 </body>

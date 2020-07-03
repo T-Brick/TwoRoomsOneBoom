@@ -33,13 +33,12 @@ joinForm.onsubmit = function(e) {
 
     joinGame = {
         playerName: nameInput.value,
-        lobbyName: lobbyInput.value
+        lobbyName: lobbyInput.value,
+        anonymous: false
     };
 
     socket.emit("joinGame", joinGame);
 
-    // nameInput.setAttribute("readonly", true);
-    // lobbyInput.setAttribute("readonly", true);
     nameInput.readOnly = true;
     lobbyInput.readOnly = true;
 };
