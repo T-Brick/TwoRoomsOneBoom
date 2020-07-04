@@ -1,19 +1,20 @@
 <html>
 
 <head>
-    <title>Test</title>
+    <title>Two Rooms and a Boom</title>
     <link rel="stylesheet" href="../client/game/game.css">
     <link href="https://fonts.googleapis.com/css?family=Open+Sans:700,600" rel="stylesheet" type="text/css">
     <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css" type="text/css">
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js" type="text/javascript"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="../client/utilities.js"></script>
+    <script src="../client/game_states.js"></script>
 </head>
 
 <body onload="joinGame()">
     <div class="box">
         <div class="header">
-            <div class="title">Pre-Game Lobby</div>
+            <div class="title">Two Rooms and a Boom</div>
             <div class="link">
                 Lobby Link:
                 <input id="copylink" type="text" readonly=true onfocus="this.select()"></input>
@@ -30,9 +31,18 @@
                     <input id="startGame" class="btn" type="button" value="Start Game" onclick="startGame()"></input>
                 </div>
                 <div id="gameInfo" style="display: none;">
-                    <div id="timer">wow1</div>
-                    <div id="round">wow2</div>
-                    <div id="role">wow3</div>
+                    <div class="timer" id="timer" style="display: inline;">00:00</div>
+                    <br />
+                    <div class="roundtext">
+                        Round <div id="round" style="display: inline;">0</div> of <div id="maxRounds" style="display: inline;">0</div>
+                    </div>
+                    <br />
+                    <div class="roletext">
+                        Your role is: <em><div id="role" style="display: inline;">Unknown</div></em>.
+                    </div>
+                    <div class="goaltext">
+                        Your objective is to: <div id="goal" style="display: inline;">Unknown</div>
+                    </div>
                 </div>
             </div>
         </div>

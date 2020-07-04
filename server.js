@@ -2,22 +2,19 @@ var express = require("express");
 var app = express();
 var uniqid = require("uniqid");
 var xss = require("xss");
-const root_dir = __dirname
+const root_dir = __dirname;
 
 var server = require("http").createServer(app);
 
 const joinURL = root_dir + "/client/index.html";
-const gameURL = root_dir + "/client/game/index.html"
+const gameURL = root_dir + "/client/game/index.html";
+const gameFailURL = root_dir + "/client/game/failed.html";
+const game_settings = require("./game_settings.json");
+require("./client/game_states.js");
 const xssSettings = {
     whiteList: ["b", "i", "u", "em", "strong"],
     stripIgnoreTag: true,
     stripIgnoreBody: ["script"]
-};
-
-const LOBBY_STATUS = {
-    PRE_GAME: "pre_game",
-    IN_GAME: "in_game",
-    PAUSED: "pause"
 };
 
 var lobbies = {};
@@ -28,19 +25,25 @@ var addPlayerData = function(socket, playerId, data) {
     var playerName = xss(data.playerName, xssSettings);
     var lobbyName = data.lobbyName;
     var anonymous = data.anonymous;
+    if (playerName == "")
+        return CONNECTION.INVALID;
     
     if (lobbies[lobbyName] != null && lobbies[lobbyName].status != LOBBY_STATUS.PRE_GAME) {
-        return -1;
+        return CONNECTION.LOBBY_STARTED;
     }
     if (players[playerId] == null && (anonymous || playerNames[playerName] == null)) {
         players[playerId] = {
             socket: socket,
+            alive: true,
             public: {
                 name: playerName,
                 id: playerId,
                 lobby: lobbyName,
                 host: false,
                 anonymous: anonymous
+            },
+            private: {
+                role: null
             }
         };
         if (!anonymous) {
@@ -50,7 +53,7 @@ var addPlayerData = function(socket, playerId, data) {
         }
         return playerId;
     }
-    return -1;
+    return CONNECTION.NAME_USED;
 }
 
 var genMissingNameNum = function(list) {
@@ -62,6 +65,50 @@ var genMissingNameNum = function(list) {
     }
     return last + 1;
 };
+
+var assignRole = function(unassignedPlayers, role) {
+    var rand = Math.floor(Math.random() * unassignedPlayers.length);
+    var pid = unassignedPlayers.splice(rand, 1);
+    players[pid].private.role = role;
+    players[pid].socket.emit("assignRole", role);
+    return unassignedPlayers;
+}
+
+var assignRoles = function(lobby) {
+    lobby.status = LOBBY_STATUS.STARTING;
+
+    var unassignedPlayers = lobby.players.map(x => x); // clones the array
+    var i;
+
+    var ruleset = null;
+    for(var rules of Object.values(game_settings["gamemodes"])) {
+        if (rules["players"].includes(unassignedPlayers.length)) {
+            ruleset = game_settings["rules"][rules["ruleset"]];
+            break;
+        }
+    }
+    if (ruleset == null)
+        return -1;
+    
+
+    // assign gambler
+    if (ruleset["oddGambler"] && unassignedPlayers.length % 2 == 1)
+        unassignedPlayers = assignRole(unassignedPlayers, "gambler");
+
+    // special roles
+    for(i = 0; i < ruleset["specialRoles"].length; i++) {
+        unassignedPlayers = assignRole(unassignedPlayers, ruleset["specialRoles"][i]);
+    }
+
+    // generic roles
+    i = 0;
+    while (unassignedPlayers.length > 0) {
+        unassignedPlayers = assignRole(unassignedPlayers, ruleset["genericRoles"][i]);
+        if (i >= ruleset["genericRoles"].length)
+            i = 0;
+    }
+    return 0;
+}
 
 var emitToLobby = function(lobbyName, event, data) {
     lobbies[lobbyName].players.forEach(function(playerId) {
@@ -75,17 +122,25 @@ var emitToLobby = function(lobbyName, event, data) {
 }
 
 app.get("/game/:lobbyName", function(req, res) {
-    res.sendFile(gameURL);
-
-    var lobbyName = req.params["lobbyName"];
-    if (lobbies[lobbyName] == null) {
-        lobbies[lobbyName] = {
-            status: LOBBY_STATUS.PRE_GAME,
-            missing_names: [],
-            round: -1,
-            players: []
-        };
+    var lobbyName = req.params["lobbyName"].trim();
+    if (lobbyName != "") {
+        if (lobbies[lobbyName] == null) {
+            lobbies[lobbyName] = {
+                name: lobbyName,
+                status: LOBBY_STATUS.PRE_GAME,
+                missing_names: [],
+                round: -1,
+                players: [],
+                ruleset: null
+            };
+        } else if(lobbies[lobbyName].status != LOBBY_STATUS.PRE_GAME) {
+            res.sendFile(gameFailURL);
+            return;
+        }
+        res.sendFile(gameURL);
+        return;
     }
+    res.sendFile(gameFailURL);
 });
 
 app.get("/", function(req, res) {
@@ -119,7 +174,8 @@ io.sockets.on("connection", function(socket) {
                 lobbyName: lobbyName,
                 anonymous: true
             };
-            addPlayerData(socket, playerId, playerData);
+            if(addPlayerData(socket, playerId, playerData) < 0)
+                return;
             lobbies[lobbyName].missing_names.push(missingNameNum);
             socket.emit("userData", players[playerId].public);
         } else {
@@ -129,6 +185,7 @@ io.sockets.on("connection", function(socket) {
                 addPlayerData(socket, playerId, data);
             } else {
                 players[playerId].socket = socket;
+                players[playerId].alive = true;
             }
         }
 
@@ -144,7 +201,10 @@ io.sockets.on("connection", function(socket) {
 
     socket.on("startGame", function() {
         if (players[playerId].public.host) {
-            // TODO: start game
+            if (assignRoles(lobbies[players[playerId].public.lobby]) < 0) {
+                return;
+            }
+
             console.log("Starting lobby " + players[playerId].public.lobby + " with " 
                         + lobbies[players[playerId].public.lobby].players.length + " players");
         }
@@ -156,22 +216,26 @@ io.sockets.on("connection", function(socket) {
             var playerLobby = players[playerId].public.lobby;
 
             players[playerId].socket = null;
+            players[playerId].alive = false;
 
             var lobby = lobbies[playerLobby];
             if (lobby != null) {
-                lobby.players.splice(lobby.players.indexOf(playerId), 1);
-                emitToLobby(playerLobby, "playerLeave", players[playerId].public);
-                if (lobby.players.length == 0) {
-                    return;
+                if (lobby.status == LOBBY_STATUS.PRE_GAME) {
+                    lobby.players.splice(lobby.players.indexOf(playerId), 1);
+                    emitToLobby(playerLobby, "playerLeave", players[playerId].public);
+                    if (lobby.players.length == 0) {
+                        return;
+                    }
+                    
+                    if(players[playerId].public.host) {
+                        players[playerId].public.host = false;
+                        players[lobby.players[0]].public.host = true;
+                        emitToLobby(playerLobby, "host", lobby.players[0]);
+                    }
+                    
+                    if (players[playerId].public.anonymous)
+                        lobby.missing_names.splice(lobby.missing_names.indexOf(players[playerId].public.name), 1);
                 }
-                
-                if(players[playerId].public.host) {
-                    players[playerId].public.host = false;
-                    emitToLobby(playerLobby, "host", lobby.players[0]);
-                }
-                
-                if (players[playerId].public.anonymous)
-                    lobby.missing_names.splice(lobby.missing_names.indexOf(players[playerId].public.name), 1);
             }
         }
     });

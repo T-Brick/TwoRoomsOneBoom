@@ -7,8 +7,12 @@ var playersTitle = document.getElementById("playersTitle");
 var settings = document.getElementById("settings");
 var gameInfo = document.getElementById("gameInfo");
 
+var round = document.getElementById("round");
+var maxRound = document.getElementById("maxRound");
+var disp_role = document.getElementById("role");
+var goal = document.getElementById("goal");
+
 var socket = io();
-const missingNameTitle = "Anonymous";
 
 var player = {
     name: getCookie("username"),
@@ -17,7 +21,9 @@ var player = {
     host: false,
     anonymous: false
 };
+var role;
 var players = {};
+var lobby_status = LOBBY_STATUS.PRE_GAME;
 
 var updatePlayerList = function() {
     var html = "<table>";
@@ -28,8 +34,10 @@ var updatePlayerList = function() {
         else pname = p.name;
 
         html += "<tr><td style='min-width:100px;'>" + pname + "</td>";
-        if (p.host) html += "<th style='min-width:60px;'>Host</th>";
-        else html += "<td></td>";
+        if (lobby_status == LOBBY_STATUS.PRE_GAME) {
+            if (p.host) html += "<th style='min-width:60px;'>Host</th>";
+            else html += "<td></td>";
+        }
         html += "</tr>"
         count++;
     }
@@ -71,7 +79,22 @@ socket.on("userData", function(data) {
     updatePlayerList();
 });
 
+socket.on("assignRole", function(data) {
+    lobby_status = LOBBY_STATUS.STARTING;
+    role = ROLES[data];
+    console.log("Assigned role: " + role["display"]);
+
+    disp_role.innerHTML = role.display;
+    goal.innerHTML = role.goal;
+
+    settings.style = "display: none;";
+    gameInfo.style = "display: block;"
+    updatePlayerList();
+});
+
 var joinGame = function() {
+    copyLinkBtn.value = window.location.href;
+
     var userData = {
         playerName: player.name,
         playerId: player.id,
@@ -80,5 +103,3 @@ var joinGame = function() {
     
     socket.emit("userData", userData);
 }
-
-copyLinkBtn.value = window.location.href;
