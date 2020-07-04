@@ -1,7 +1,11 @@
-var title = document.getElementById('title');
+var title = document.getElementById("title");
 var copyLinkBtn = document.getElementById("copylink");
-var playersList = document.getElementById('playersList');
-var playersTitle = document.getElementById('playersTitle');
+
+var playersList = document.getElementById("playersList");
+var playersTitle = document.getElementById("playersTitle");
+
+var settings = document.getElementById("settings");
+var gameInfo = document.getElementById("gameInfo");
 
 var socket = io();
 const missingNameTitle = "Anonymous";
@@ -19,7 +23,7 @@ var updatePlayerList = function() {
     var html = "<table>";
     var pname;
     var count = 0;
-    for (const p of Object.values(players)) {
+    for (const p of Object.values(players).sort()) {
         if (p.anonymous) pname = missingNameTitle + " " + p.name;
         else pname = p.name;
 
@@ -35,9 +39,20 @@ var updatePlayerList = function() {
     playersTitle.innerHTML = "<b>Players (" + count + ")</b>";
 }
 
-socket.on("host", function() {
-    console.log("Set as host");
-    host = true;
+var startGame = function() {
+    if (player.host) {
+        socket.emit("startGame");
+    }
+}
+
+socket.on("host", function(playerId) {
+    if (playerId == player.id) {
+        player.host = true;
+        settings.style = "display: block;";
+    }
+    if (players[playerId] != null)
+        players[playerId].host = true;
+    updatePlayerList();
 });
 
 socket.on("playerJoin", function(data) {
@@ -52,6 +67,7 @@ socket.on("playerLeave", function(data) {
 
 socket.on("userData", function(data) {
     player = data;
+    players[data.id] = player;
     updatePlayerList();
 });
 

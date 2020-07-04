@@ -1,12 +1,18 @@
 var express = require("express");
 var app = express();
 var uniqid = require("uniqid");
-var root_dir = __dirname
+var xss = require("xss");
+const root_dir = __dirname
 
 var server = require("http").createServer(app);
 
-var joinURL = root_dir + "/client/index.html";
-var gameURL = root_dir + "/client/game/index.html"
+const joinURL = root_dir + "/client/index.html";
+const gameURL = root_dir + "/client/game/index.html"
+const xssSettings = {
+    whiteList: ["b", "i", "u", "em", "strong"],
+    stripIgnoreTag: true,
+    stripIgnoreBody: ["script"]
+};
 
 const LOBBY_STATUS = {
     PRE_GAME: "pre_game",
@@ -19,10 +25,13 @@ var players = {};
 var playerNames = {};
 
 var addPlayerData = function(socket, playerId, data) {
-    var playerName = data.playerName;
+    var playerName = xss(data.playerName, xssSettings);
     var lobbyName = data.lobbyName;
     var anonymous = data.anonymous;
-
+    
+    if (lobbies[lobbyName] != null && lobbies[lobbyName].status != LOBBY_STATUS.PRE_GAME) {
+        return -1;
+    }
     if (players[playerId] == null && (anonymous || playerNames[playerName] == null)) {
         players[playerId] = {
             socket: socket,
@@ -44,11 +53,14 @@ var addPlayerData = function(socket, playerId, data) {
     return -1;
 }
 
-var genMissingNameNum = function(list, last) {
-    var curr = list.shift();
-    if (last + 1 != curr)
-        return last + 1;
-    return genMissingNameNum(list, curr);
+var genMissingNameNum = function(list) {
+    var last = 0;
+    for (var i of list) {
+        if (last + 1 != i)
+            break;
+        last = i;
+    }
+    return last + 1;
 };
 
 var emitToLobby = function(lobbyName, event, data) {
@@ -70,6 +82,7 @@ app.get("/game/:lobbyName", function(req, res) {
         lobbies[lobbyName] = {
             status: LOBBY_STATUS.PRE_GAME,
             missing_names: [],
+            round: -1,
             players: []
         };
     }
@@ -96,9 +109,10 @@ io.sockets.on("connection", function(socket) {
     });
 
     socket.on("userData", function(data) {
-        var lobbyName = data.lobbyName;
+        var lobbyName = data.lobbyName
         if (data.playerId == "" || data.playerName == "") {
             // anonymous player join
+            lobbies[lobbyName].missing_names.sort();
             var missingNameNum = genMissingNameNum(lobbies[lobbyName].missing_names, 0);
             playerData = {
                 playerName: missingNameNum,
@@ -120,12 +134,21 @@ io.sockets.on("connection", function(socket) {
 
         if (lobbies[lobbyName].players.length == 0) {
             players[playerId].public.host = true;
-            socket.emit("host");
+            socket.emit("host", playerId);
         }
+
         lobbies[lobbyName].players.forEach(pid => socket.emit("playerJoin", players[pid].public));
         lobbies[lobbyName].players.push(playerId);
         emitToLobby(lobbyName, "playerJoin", players[playerId].public);
      });
+
+    socket.on("startGame", function() {
+        if (players[playerId].public.host) {
+            // TODO: start game
+            console.log("Starting lobby " + players[playerId].public.lobby + " with " 
+                        + lobbies[players[playerId].public.lobby].players.length + " players");
+        }
+    });
 
     socket.on("disconnect", function() {
         delete SOCKET_LIST[socketId];
@@ -140,8 +163,11 @@ io.sockets.on("connection", function(socket) {
                 emitToLobby(playerLobby, "playerLeave", players[playerId].public);
                 if (lobby.players.length == 0) {
                     return;
-                } else if (lobby.players.length < 6) {
-                    // game no longer runs
+                }
+                
+                if(players[playerId].public.host) {
+                    players[playerId].public.host = false;
+                    emitToLobby(playerLobby, "host", lobby.players[0]);
                 }
                 
                 if (players[playerId].public.anonymous)
