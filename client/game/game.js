@@ -23,28 +23,18 @@ var player = {
 };
 var role;
 var players = {};
+var rooms;
 var lobby_status = LOBBY_STATUS.PRE_GAME;
 
+var genPlayerList = pregamePlayerList;
+
 var updatePlayerList = function() {
-    var html = "<table>";
-    var pname;
-    var count = 0;
-    for (const p of Object.values(players).sort()) {
-        if (p.anonymous) pname = missingNameTitle + " " + p.name;
-        else pname = p.name;
+    // var list = genPlayerList(players, "<table>");
+    var list = genPlayerList(players, "", player.id);
+    // list[1] += "</table>";
 
-        html += "<tr><td style='min-width:100px;'>" + pname + "</td>";
-        if (lobby_status == LOBBY_STATUS.PRE_GAME) {
-            if (p.host) html += "<th style='min-width:60px;'>Host</th>";
-            else html += "<td></td>";
-        }
-        html += "</tr>"
-        count++;
-    }
-    html += "</table>";
-
-    playersList.innerHTML = html;
-    playersTitle.innerHTML = "<b>Players (" + count + ")</b>";
+    playersList.innerHTML = list[1];
+    playersTitle.innerHTML = "<b>Players (" + list[0] + ")</b>";
 }
 
 var startGame = function() {
@@ -65,6 +55,7 @@ socket.on("host", function(playerId) {
 
 socket.on("playerJoin", function(data) {
     players[data.id] = data;
+    players[data.id].role = "unknown";
     updatePlayerList();
 });
 
@@ -89,6 +80,20 @@ socket.on("assignRole", function(data) {
 
     settings.style = "display: none;";
     gameInfo.style = "display: block;"
+    updatePlayerList();
+});
+
+socket.on("assignRooms", function(data) {
+    rooms = data;
+    console.log(data);
+    for (var i of [1,2]) {
+        for (var pid of rooms["room" + i]) {
+            players[pid].room = i;
+            if (pid == player.id)
+                player.room = i;
+        }
+    }
+    genPlayerList = startingPlayerList;
     updatePlayerList();
 });
 

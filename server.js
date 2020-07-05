@@ -40,10 +40,14 @@ var addPlayerData = function(socket, playerId, data) {
                 id: playerId,
                 lobby: lobbyName,
                 host: false,
-                anonymous: anonymous
+                anonymous: anonymous,
+                room: 0,
+                leader: LEADER.NONE,
+                votes: 0,
+                transfer: false
             },
             private: {
-                role: null
+                role: "unknown"
             }
         };
         if (!anonymous) {
@@ -56,6 +60,17 @@ var addPlayerData = function(socket, playerId, data) {
     return CONNECTION.NAME_USED;
 }
 
+var emitToLobby = function(lobbyName, event, data) {
+    for (var pid of lobbies[lobbyName].players) {
+        if(players[pid].socket != null) {
+            players[pid].socket.emit(event, data);
+        } else {
+            console.log("Couldn't send " + event + " packet to player " + players[pid].name + " [" + pid + "]");
+            console.log(data);
+        }
+    }
+}
+
 var genMissingNameNum = function(list) {
     var last = 0;
     for (var i of list) {
@@ -66,11 +81,14 @@ var genMissingNameNum = function(list) {
     return last + 1;
 };
 
+var pollRand = function(list) {
+    return list.splice(Math.floor(Math.random() * list.length), 1);
+}
+
 var assignRole = function(unassignedPlayers, role) {
-    var rand = Math.floor(Math.random() * unassignedPlayers.length);
-    var pid = unassignedPlayers.splice(rand, 1);
-    players[pid].private.role = role;
-    players[pid].socket.emit("assignRole", role);
+    var p = players[pollRand(unassignedPlayers)];
+    p.private.role = role;
+    p.socket.emit("assignRole", role);
     return unassignedPlayers;
 }
 
@@ -103,22 +121,26 @@ var assignRoles = function(lobby) {
     // generic roles
     i = 0;
     while (unassignedPlayers.length > 0) {
-        unassignedPlayers = assignRole(unassignedPlayers, ruleset["genericRoles"][i]);
+        unassignedPlayers = assignRole(unassignedPlayers, ruleset["genericRoles"][i++]);
         if (i >= ruleset["genericRoles"].length)
             i = 0;
     }
     return 0;
 }
 
-var emitToLobby = function(lobbyName, event, data) {
-    lobbies[lobbyName].players.forEach(function(playerId) {
-        if(players[playerId].socket != null) {
-            players[playerId].socket.emit(event, data);
-        } else {
-            console.log("Couldn't send " + event + " packet to player " + players[playerId].name + " [" + playerId + "]");
-            console.log(data);
-        }
-    });
+var assignRooms = function(lobby) {
+    var p;
+    var unassignedPlayers = lobby.players.map(x => x);
+
+    var i = 1;
+    while (unassignedPlayers.length > 0) {
+        p = players[pollRand(unassignedPlayers)];
+        p.public.room = i;
+        lobby.rooms["room" + i].push(p.public.id);
+        i = (i % 2) + 1;
+    }
+
+    emitToLobby(lobby.name, "assignRooms", lobby.rooms);
 }
 
 app.get("/game/:lobbyName", function(req, res) {
@@ -131,7 +153,11 @@ app.get("/game/:lobbyName", function(req, res) {
                 missing_names: [],
                 round: -1,
                 players: [],
-                ruleset: null
+                ruleset: null,
+                rooms: {
+                    room1: [],
+                    room2: []
+                }
             };
         } else if(lobbies[lobbyName].status != LOBBY_STATUS.PRE_GAME) {
             res.sendFile(gameFailURL);
@@ -201,12 +227,14 @@ io.sockets.on("connection", function(socket) {
 
     socket.on("startGame", function() {
         if (players[playerId].public.host) {
-            if (assignRoles(lobbies[players[playerId].public.lobby]) < 0) {
+            var lobby = lobbies[players[playerId].public.lobby];
+            if (assignRoles(lobby) < 0) {
                 return;
             }
 
             console.log("Starting lobby " + players[playerId].public.lobby + " with " 
                         + lobbies[players[playerId].public.lobby].players.length + " players");
+            assignRooms(lobby);
         }
     });
 

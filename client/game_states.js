@@ -25,7 +25,7 @@ ROLES = {
         id: 100,
         display: "President",
         team: "blue",
-        goal: "Be in a room without the bomber at the end of the game ."
+        goal: "Be in a room without the bomber at the end of the game."
     },
     "blue": {
         id: 101,
@@ -51,4 +51,11 @@ ROLES = {
         team: "grey",
         goal: "Correctly select which team is going to win the game at the end of the game."
     }
-}
+};
+
+LEADER = {
+    NONE: "none",
+    NOMINATED: "nominated",
+    VOTED: "voted",
+    IN_OFFICE: "in_office"
+};

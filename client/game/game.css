@@ -4,10 +4,10 @@ body {
 
 .box {
     background: white;
-    width: 60%;
+    width: 90%;
     min-height: 60%;
     border-radius: 6px;
-    margin: 5% auto auto auto;
+    margin: 5% auto 5% auto;
     padding: 10px;
     box-shadow: 5px 5px 10px #888888;
 }
@@ -33,7 +33,7 @@ body {
     .column {
       width: 100%;
     }
-  }
+}
 
 .header {
     text-align: center;
@@ -65,10 +65,32 @@ table {
     margin-left: 5%;
 }
 
-.playersList tr, td, th {
-    border: 1px solid black;
-    margin-left: 5%;
-    align-content: left;
+.player {
+    position: relative;
+    width: 100%;
+    display: table;
+}
+
+.playerList0 {
+    background-color: white;
+}
+
+.playerList1 {
+    background-color: lightgrey;
+}
+
+.pregame_player_name {
+    margin-left: 4em;
+}
+
+#pregame_host {
+    position: absolute;
+}
+
+.ingame {
+    float: left;
+    width: 45%;
+    margin: 2px auto 5px 10px;
 }
 
 .playersTitle {
