@@ -56,6 +56,5 @@ ROLES = {
 LEADER = {
     NONE: "none",
     NOMINATED: "nominated",
-    VOTED: "voted",
     IN_OFFICE: "in_office"
 };

@@ -47,7 +47,9 @@ var addPlayerData = function(socket, playerId, data) {
                 transfer: false
             },
             private: {
-                role: "unknown"
+                role: "unknown",
+                sharing: [],
+                voting: []
             }
         };
         if (!anonymous) {
@@ -60,15 +62,20 @@ var addPlayerData = function(socket, playerId, data) {
     return CONNECTION.NAME_USED;
 }
 
-var emitToLobby = function(lobbyName, event, data) {
-    for (var pid of lobbies[lobbyName].players) {
+var emitToList = function(list, event, data) {
+    for (var pid of list) {
         if(players[pid].socket != null) {
             players[pid].socket.emit(event, data);
-        } else {
-            console.log("Couldn't send " + event + " packet to player " + players[pid].name + " [" + pid + "]");
-            console.log(data);
         }
     }
+}
+
+var emitToLobby = function(lobbyName, event, data) {
+    emitToList(lobbies[lobbyName].players, event, data);
+}
+
+var emitToRoom = function(lobbyName, roomNum, event, data) {
+    emitToList(lobbies[lobbyName].rooms["room" + roomNum].players, event, data);
 }
 
 var genMissingNameNum = function(list) {
@@ -136,7 +143,7 @@ var assignRooms = function(lobby) {
     while (unassignedPlayers.length > 0) {
         p = players[pollRand(unassignedPlayers)];
         p.public.room = i;
-        lobby.rooms["room" + i].push(p.public.id);
+        lobby.rooms["room" + i].players.push(p.public.id);
         i = (i % 2) + 1;
     }
 
@@ -155,8 +162,14 @@ app.get("/game/:lobbyName", function(req, res) {
                 players: [],
                 ruleset: null,
                 rooms: {
-                    room1: [],
-                    room2: []
+                    room1: {
+                        players: [],
+                        leader: null
+                    },
+                    room2: {
+                        players: [],
+                        leader: null
+                    }
                 }
             };
         } else if(lobbies[lobbyName].status != LOBBY_STATUS.PRE_GAME) {
@@ -235,6 +248,114 @@ io.sockets.on("connection", function(socket) {
             console.log("Starting lobby " + players[playerId].public.lobby + " with " 
                         + lobbies[players[playerId].public.lobby].players.length + " players");
             assignRooms(lobby);
+        }
+    });
+
+    socket.on("shareRole", function(data) {
+        var room = players[data.target].public.room;
+        var lobby = players[data.target].public.lobby;
+
+        if (room != players[playerId].public.room
+        ||  lobby != players[playerId].public.lobby)
+            return;
+        
+        var i = players[data.target].private.sharing.indexOf(playerId);
+        if (i < 0) {
+            i = players[playerId].private.sharing.indexOf(data.target);
+            if (i < 0) {
+                players[playerId].private.sharing.push(data.target);
+                data.cancel = false;
+            } else {
+                players[playerId].private.sharing.splice(i, 1);
+                data.cancel = true;
+            }
+            data.shared = false;
+            data.mutual = true;
+            emitToRoom(lobby, room, "shareRole", data);
+        } else {
+            var roleData = {
+                id: data.target,
+                role: players[data.target].private.role,
+                mutual: true
+            };
+            socket.emit("revealRole", roleData);
+
+            roleData = {
+                id: playerId,
+                role: players[playerId].private.role,
+                mutual: true
+            };
+            players[data.target].socket.emit("revealRole", roleData);
+
+            data.shared = true;
+            data.mutual = true;
+            data.cancel = false;
+            emitToRoom(lobby, room, "shareRole", data);
+        }
+    });
+
+    socket.on("revealRole", function(data) {
+        var room = players[data.target].public.room;
+        var lobby = players[data.target].public.lobby;
+
+        if (room != players[playerId].public.room
+        ||  lobby != players[playerId].public.lobby)
+            return;
+        
+        var roleData = {
+            id: playerId,
+            role: players[playerId].private.role,
+            mutual: false
+        };
+        players[data.target].socket.emit("revealRole", roleData);
+
+        data.shared = true;
+        data.mutual = false;
+        data.cancel = false;
+        emitToRoom(lobby, room, "shareRole", data);
+    });
+
+    socket.on("vote", function(data) {
+        if (players[data.target].public.room != players[playerId].public.room
+        ||  players[data.target].public.lobby != players[playerId].public.lobby)
+            return;
+        var i = players[playerId].private.voting.indexOf(data.target);
+        if (i < 0) {
+            players[playerId].private.voting.push(data.target);
+
+            if (players[data.target].public.votes == 0)
+                players[data.target].public.leader = LEADER.NOMINATED;
+            
+            players[data.target].public.votes++;
+            var roomSize = lobbies[data.lobby].rooms["room" + data.room].players.length;
+            if (players[data.target].public.votes >= roomSize / 2) {
+                for (var pid of lobbies[data.lobby].rooms["room" + data.room].players) {
+                    players[pid].public.leader = LEADER.NONE;
+                    players[pid].public.votes = 0;
+                    players[pid].private.voting = [];
+                }
+                players[data.target].public.leader = LEADER.IN_OFFICE;
+                lobbies[data.lobby].rooms["room" + data.room].leader = data.target;
+            }
+
+            data.status = players[data.target].public.leader;
+            data.votes = players[data.target].public.votes;
+            data.cancel = false;
+            data.newLeader = data.status == LEADER.IN_OFFICE;
+
+            emitToRoom(players[playerId].public.lobby, data.room, "vote", data);
+        } else {
+            players[playerId].private.voting.splice(i, 1);
+
+            if (players[data.target].public.votes == 0)
+                players[data.target].public.leader = LEADER.NONE;
+            
+            data.status = players[data.target].public.leader;
+            data.votes = players[data.target].public.votes;
+            data.cancel = true;
+            data.newLeader = false;
+
+            emitToRoom(players[playerId].public.lobby, data.room, "vote", data);
         }
     });
 
