@@ -30,6 +30,15 @@
                 <div id="settings" style="display: none;">
                     <input id="startGame" class="btn" type="button" value="Start Game" onclick="startGame()"></input>
                 </div>
+                <div id="preRoundBox" style="display: none;">
+                    <div id="preRoundtext">
+                        Go into a seperate room/area/voice call with the people on the list. 
+                    </div>
+                    <br />
+                    <div id="startRoundBox" style="display: none;">
+                        <input id="startRoundBtn" class="btn" type="button" value="Start Round" onclick="startRound()"></input>
+                    </div>
+                </div>
                 <div id="gameInfo" style="display: none;">
                     <div class="timer" id="timer" style="display: inline;">00:00</div>
                     <br />
@@ -49,7 +58,7 @@
             </div>
         </div>
     </div>
-    <script src="../client/game/playerlist.js"></script>
+    <script src="../client/game/display.js"></script>
     <script src="../client/game/game.js"></script>
 </body>
 

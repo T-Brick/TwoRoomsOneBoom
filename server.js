@@ -115,6 +115,7 @@ var assignRoles = function(lobby) {
     if (ruleset == null)
         return -1;
     
+    lobby.ruleset = ruleset;
 
     // assign gambler
     if (ruleset["oddGambler"] && unassignedPlayers.length % 2 == 1)
@@ -150,6 +151,60 @@ var assignRooms = function(lobby) {
     emitToLobby(lobby.name, "assignRooms", lobby.rooms);
 }
 
+var endRound = function(lobbyName) {
+    var lobby = lobbies[lobbyName]
+
+    lobby.round.status = ROUND.PRE_ROUND;
+    lobby.round.duration = -1;
+    lobby.round.endtime = -1;
+
+    emitToLobby(lobby.name, "setRound", lobby.round);
+    var room1 = lobby.rooms["room1"];
+    var room2 = lobby.rooms["room2"];
+
+    var pid;
+    for (pid of room1.transfers) room1.players.splice(room1.players.indexOf(pid), 1);
+    for (pid of room2.transfers) room2.players.splice(room2.players.indexOf(pid), 1);
+
+    var fillTransfer = function(room) {
+        var p;
+        while(room.transfers.length < lobby.round.transfers) {
+            p = pollRand(room.players);
+            if (p.id != room.leader) room.transfers.push(p);
+            else room.players.push(p);
+        }
+        return room;
+    };
+    room1 = fillTransfer(room1);
+    room2 = fillTransfer(room2);
+
+    for (pid of room1.transfers) {
+        players[pid].public.room = 2;
+        players[pid].public.transfer = false;
+        players[pid].public.votes = 0;
+        players[pid].public.leader = LEADER.NONE;
+
+        players[pid].private.voting = [];
+
+        room2.players.push(pid);
+    }
+    for (pid of room2.transfers) {
+        players[pid].public.room = 1;
+        players[pid].public.transfer = false;
+        players[pid].public.votes = 0;
+        players[pid].public.leader = LEADER.NONE;
+
+        players[pid].private.voting = [];
+
+        room1.players.push(pid);
+    }
+
+    room1.transfers = [];
+    room2.transfers = [];
+
+    emitToLobby(lobby.name, "assignRooms", lobby.rooms);
+}
+
 app.get("/game/:lobbyName", function(req, res) {
     var lobbyName = req.params["lobbyName"].trim();
     if (lobbyName != "") {
@@ -158,17 +213,25 @@ app.get("/game/:lobbyName", function(req, res) {
                 name: lobbyName,
                 status: LOBBY_STATUS.PRE_GAME,
                 missing_names: [],
-                round: -1,
+                round: {
+                    roundNum: 0,
+                    maxRoundNum: 0,
+                    status: ROUND.NONE,
+                    endtime: -1,
+                    transfers: 0
+                },
                 players: [],
                 ruleset: null,
                 rooms: {
                     room1: {
                         players: [],
-                        leader: null
+                        leader: null,
+                        transfers: []
                     },
                     room2: {
                         players: [],
-                        leader: null
+                        leader: null,
+                        transfers: []
                     }
                 }
             };
@@ -236,7 +299,7 @@ io.sockets.on("connection", function(socket) {
         lobbies[lobbyName].players.forEach(pid => socket.emit("playerJoin", players[pid].public));
         lobbies[lobbyName].players.push(playerId);
         emitToLobby(lobbyName, "playerJoin", players[playerId].public);
-     });
+    });
 
     socket.on("startGame", function() {
         if (players[playerId].public.host) {
@@ -248,6 +311,8 @@ io.sockets.on("connection", function(socket) {
             console.log("Starting lobby " + players[playerId].public.lobby + " with " 
                         + lobbies[players[playerId].public.lobby].players.length + " players");
             assignRooms(lobby);
+            lobby.round.status = ROUND.PRE_ROUND;
+            emitToLobby(lobby.name, "setRound", lobby.round);
         }
     });
 
@@ -317,8 +382,11 @@ io.sockets.on("connection", function(socket) {
 
     socket.on("vote", function(data) {
         if (players[data.target].public.room != players[playerId].public.room
-        ||  players[data.target].public.lobby != players[playerId].public.lobby)
+        ||  players[data.target].public.lobby != players[playerId].public.lobby
+        ||  data.room != players[playerId].public.room
+        ||  data.lobby != players[playerId].public.lobby)
             return;
+
         var i = players[playerId].private.voting.indexOf(data.target);
         if (i < 0) {
             players[playerId].private.voting.push(data.target);
@@ -356,6 +424,50 @@ io.sockets.on("connection", function(socket) {
             data.newLeader = false;
 
             emitToRoom(players[playerId].public.lobby, data.room, "vote", data);
+        }
+    });
+
+    socket.on("transfer", function(data) {
+        if (players[data.target].public.room != players[playerId].public.room
+        ||  players[data.target].public.lobby != players[playerId].public.lobby
+        ||  players[playerId].public.leader != LEADER.IN_OFFICE)
+            return;
+
+        var room = lobbies[data.lobby].rooms["room" + data.room];
+        var i = room.transfers.indexOf(data.target);
+        if (i < 0) {
+            if (room.transfers.length >= lobbies[data.lobby].round.transfers)
+                room.transfers.splice(0, 1);
+            room.transfers.push(data.target);
+            players[data.target].public.transfer = true;
+            emitToRoom(players[playerId].public.lobby, data.room, "updateRoom", room);
+        } else {
+            room.transfers.splice(i, 1);
+            players[data.target].public.transfer = false;
+            emitToRoom(players[playerId].public.lobby, data.room, "updateRoom", room);
+        }
+    });
+
+    socket.on("startRound", function() {
+        var lobby = lobbies[players[playerId].public.lobby];
+        if (lobby.round.status == ROUND.PRE_ROUND) {
+            var ruleset = lobby.ruleset;
+            lobby.round.roundNum++;
+            if (lobby.round.roundNum == 1)
+                lobby.round.maxRoundNum = ruleset["roundTimes"].length
+            if (lobby.round.roundNum > lobby.round.maxRoundNum) {
+                // TODO: end game
+                return;
+            }
+
+            lobby.round.status = ROUND["ROUND" + lobby.round.roundNum];
+            var time = ruleset["roundTimes"][lobby.round.roundNum - 1];
+            lobby.round.duration = time * 60 * 1000;
+            lobby.round.endtime = new Date().getTime() + lobby.round.duration;
+            setTimeout(endRound, lobby.round.duration, lobby.name);
+
+            lobby.round.transfers = ruleset["hostages"][lobby.round.roundNum - 1];
+            emitToLobby(lobby.name, "setRound", lobby.round);
         }
     });
 
