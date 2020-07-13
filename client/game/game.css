@@ -5,11 +5,13 @@ body {
 .box {
     background: white;
     width: 90%;
-    min-height: 60%;
+    min-height: 400px;
     border-radius: 6px;
     margin: 5% auto 5% auto;
     padding: 10px;
     box-shadow: 5px 5px 10px #888888;
+    position: absolute;
+    left: 5%;
 }
 
 .row {
@@ -47,6 +49,15 @@ body {
 
 #copylink {
     width: 40%;
+}
+
+.chat {
+    width: 100%;
+    max-height: 100px;
+    padding: 5px;
+    overflow-y: auto;
+    position: relative;
+    background-color: #F0F0F0;
 }
 
 .btn {

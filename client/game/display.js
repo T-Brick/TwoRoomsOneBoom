@@ -30,12 +30,21 @@ var postgameBox_disp = document.getElementById("postgameBox");
 var win_disp = document.getElementById("you_win");
 var loose_disp = document.getElementById("you_loose");
 
+const displayName = function(player, bold = false) {
+    var name;
+    if (player.anonymous) name = missingNameTitle + " " + player.name;
+    else name = player.name;
+
+    if (bold) name = "<b>" + name + "</b>";
+    
+    return name;
+}
+
 const lobbyPlayerList = function(html) {
     var pname;
     var count = 0;
     for (const p of Object.values(players).sort()) {
-        if (p.anonymous) pname = missingNameTitle + " " + p.name;
-        else pname = p.name;
+        pname = displayName(p);
 
         html += "<div class='player playerList" + count % 2 + "'>"
         if (p.host) html += "<div id='pregame_host'><strong>Host</strong></div>"
@@ -50,8 +59,7 @@ const pregameRoundPlayerList = function(html) {
     var pname;
     var count = 0;
     for (const p of Object.values(players).sort()) {
-        if (p.anonymous) pname = missingNameTitle + " " + p.name;
-        else pname = p.name;
+        pname = displayName(p);
 
         if (p.transfer) pname = "<em>" + pname + "</em>";
         if (p.leader == LEADER.IN_OFFICE) pname = "<strong>" + pname + "</strong>";
@@ -84,8 +92,7 @@ const ingamePlayerList = function(html) {
     var p;
     for (const pid of rooms["room" + player.room].players) {
         p = players[pid];
-        if (p.anonymous) pname = missingNameTitle + " " + p.name;
-        else pname = p.name;
+        pname = displayName(p);
 
         if (p.transfer) pname = "<em>" + pname + "</em>";
         if (p.leader == LEADER.IN_OFFICE) pname = "<strong>" + pname + "</strong>";
@@ -153,8 +160,7 @@ const endgamePlayerList = function(html) {
         var p;
         for (const pid of rooms["room" + roomNum].players) {
             p = players[pid];
-            if (p.anonymous) pname = missingNameTitle + " " + p.name;
-            else pname = p.name;
+            pname = displayName(p);
 
             html += "<div class='player playerList" + count % 2 + "'>";
 
@@ -183,6 +189,7 @@ const postgamePlayerList = endgamePlayerList;
 
 const clearDisplay = function() {
     settings_disp.style = "display: none;";
+    chat_disp.style = "display: none;";
 
     preRoundBox_disp.style = "display: none;";
     startRound_disp.style = "display: none;";
@@ -215,6 +222,7 @@ const pregameRoundData = function() {
 
     if (player.host)
         startRound_disp.style = "display: block;";
+    chat_disp.style = "display: block;";
 };
 
 const ingameRoundData = function() {
@@ -227,11 +235,13 @@ const ingameRoundData = function() {
 
     clearDisplay();
     gameInfoBox_disp.style = "display: block;";
+    chat_disp.style = "display: block;";
 };
 
 const endgameRoundData = function() {
     clearDisplay();
     endgameBox_disp.style = "display: block;";
+    chat_disp.style = "display: block;";
     switch (player.role) {
         case "gambler":
             gambler_disp.style = "display: block;";
@@ -245,6 +255,7 @@ const endgameRoundData = function() {
 const postgameRoundData = function() {
     clearDisplay();
     postgameBox_disp.style = "display: block;";
+    chat_disp.style = "display: block;";
     if (win) {
         win_disp.style = "display: block;";
     } else {
@@ -265,12 +276,20 @@ const updateTime = function() {
     timer_disp.innerHTML = time_min + ":" + (time_sec < 10 ? "0" + time_sec : time_sec);
 }
 
+var genChat = function() {
+    var html = "";
+    chatlog.forEach(c => html += "<div class='msg'>" + c + "</div>");
+    chat_disp.innerHTML = html;
+    chat_disp.scrollTop = 0;
+}
+
 var genPlayerList = lobbyPlayerList;
 var genRoundData = lobbyRoundData;
 
 const updateDisplay = function() {
     var list = genPlayerList("");
     genRoundData();
+    genChat();
 
     playersList.innerHTML = list[1];
     playersTitle.innerHTML = "<b>Players (" + list[0] + ")</b>";

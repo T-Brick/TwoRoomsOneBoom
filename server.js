@@ -268,7 +268,7 @@ var makeEndgameDecision = function(playerId, data) {
     var i;
     switch (players[playerId].private.role) {
         case "gambler":
-            var gamblers = players[playerId].endgame_choice.gambler;
+            var gamblers = lobbies[players[playerId].public.lobby].endgame_pause.gambler;
             i = gamblers.indexOf(playerId);
             if (i >= 0) {
                 gamblers.splice(i, 1);
@@ -277,8 +277,11 @@ var makeEndgameDecision = function(playerId, data) {
 
             emitToLobby(players[playerId].public.lobby, "gamblerVote", data);
 
-            if (!hasDecisions(players[playerId].public.lobby))
+            if (!hasDecisions(players[playerId].public.lobby)) {
+                lobbies[players[playerId].public.lobby].round.status = ROUND.POSTGAME;
+                emitToLobby(players[playerId].public.lobby, "setRound", lobbies[players[playerId].public.lobby].round);
                 endGame(players[playerId].public.lobby);
+            }
             break;
         default:
             break;
@@ -291,7 +294,8 @@ var endGame = function(lobbyName) {
         var roleData = {
             id: pid,
             role: players[pid].private.role,
-            mutual: true
+            mutual: true,
+            endgame: true
         };
         emitToLobby(lobbyName, "revealRole", roleData);
     });
@@ -304,7 +308,6 @@ var endGame = function(lobbyName) {
 
     lobby.rooms["room" + bomberRoom].players.forEach(pid => players[pid].public.dead = true);
     results.winTeam = players[lobby.rolesmap["president"][0]].public.dead ? TEAM.RED : TEAM.BLUE;
-    console.log(results.winTeam);
 
     if (lobby.rolesmap["gambler"] != null) {
         lobby.rolesmap["gambler"].forEach(pid => {
@@ -393,7 +396,7 @@ io.sockets.on("connection", function(socket) {
     socket.on("startGame", function(data) {
         if (players[playerId].public.host) {
             var lobby = lobbies[players[playerId].public.lobby];
-            if (data == null) data = "standard";
+            if (data == null) data = "Standard";
             if (assignRoles(lobby, data) < 0) {
                 return;
             }
@@ -426,25 +429,29 @@ io.sockets.on("connection", function(socket) {
             }
             data.shared = false;
             data.mutual = true;
+            data.endgame = false;
             emitToRoom(lobby, room, "shareRole", data);
         } else {
             var roleData = {
                 id: data.target,
                 role: players[data.target].private.role,
-                mutual: true
+                mutual: true,
+                endgame: false
             };
             socket.emit("revealRole", roleData);
 
             roleData = {
                 id: playerId,
                 role: players[playerId].private.role,
-                mutual: true
+                mutual: true,
+                endgame: false
             };
             players[data.target].socket.emit("revealRole", roleData);
 
             data.shared = true;
             data.mutual = true;
             data.cancel = false;
+            data.endgame = false;
             emitToRoom(lobby, room, "shareRole", data);
         }
     });
@@ -460,13 +467,15 @@ io.sockets.on("connection", function(socket) {
         var roleData = {
             id: playerId,
             role: players[playerId].private.role,
-            mutual: false
+            mutual: false,
+            endgame: false
         };
         players[data.target].socket.emit("revealRole", roleData);
 
         data.shared = true;
         data.mutual = false;
         data.cancel = false;
+        data.endgame = false;
         emitToRoom(lobby, room, "shareRole", data);
     });
 

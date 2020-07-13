@@ -34,9 +34,11 @@ var round = {
     transfers: 0
 };
 
+var chatlog = [];
+
 var startGame = function() {
     if (player.host) {
-        socket.emit("startGame", "standard");
+        socket.emit("startGame", "Standard");
     }
 };
 
@@ -98,13 +100,14 @@ var startRound = function() {
 }
 
 var gamblerVote = function(team) {
-    if (ROLES[player.role] == ROLES["gambler"].id) {
+    if (ROLES[player.role].id == ROLES["gambler"].id) {
         data = {
             id: player.id,
             team: team
         };
         socket.emit("gamblerVote", data);
     }
+    updateDisplay();
 }
 
 socket.on("host", function(playerId) {
@@ -142,6 +145,7 @@ socket.on("assignRole", function(data) {
     role = ROLES[data];
     player.role = data;
     players[player.id].role = data;
+    chatlog.unshift("Assigned role: " + role["display"]);
     console.log("Assigned role: " + role["display"]);
     updateDisplay();
 });
@@ -150,6 +154,9 @@ socket.on("assignRooms", function(data) {
     rooms = data;
     for (var i of [1,2]) {
         for (var pid of rooms["room" + i].players) {
+            // if (players[pid].transfer) {
+            //     chatlog.unshift(displayName(players[pid]) + " was transferred.");
+            // }
             players[pid].room = i;
             players[pid].transfer = false;
             players[pid].votes = 0;
@@ -166,7 +173,18 @@ socket.on("assignRooms", function(data) {
 });
 
 socket.on("shareRole", function(data) {
-    // TODO: announce sharing
+    if (!data.endgame) {
+        if (data.cancel) {   
+            chatlog.unshift(displayName(players[data.source], true) + " rescinded their offer to share roles with " + displayName(players[data.target], true) + ".");
+        } else if (!data.mutual) {
+            chatlog.unshift(displayName(players[data.source], true) + " revealed their role to " + displayName(players[data.target], true) + ".");
+        } else if (data.shared) {
+            chatlog.unshift(displayName(players[data.source], true) + " and " + displayName(players[data.target], true) + " shared their roles.");
+        } else {
+            chatlog.unshift(displayName(players[data.source], true) + " offered to share roles with " + displayName(players[data.target], true) + ".");
+        }
+    }
+    updateDisplay();
 });
 
 socket.on("revealRole", function(data) {
@@ -176,11 +194,11 @@ socket.on("revealRole", function(data) {
 });
 
 socket.on("gamblerVote", function(data) {
-    // TODO: announce gambler vote
+    chatlog.unshift(displayName(players[data.id], true) + " thinks the " + data.team + " team will win.");
+    updateDisplay();
 });
 
 socket.on("vote", function(data) {
-    // TODO: announce voting
     if (data.newLeader) {
         rooms["room" + data.room].leader = data.target;
         for (var pid of rooms["room" + data.room].players) {
@@ -191,6 +209,17 @@ socket.on("vote", function(data) {
         player.leader = LEADER.NONE;
         player.votes = 0;
         player.voting_for = false;
+        chatlog.unshift(displayName(players[data.source], true) + " voted for " + displayName(players[data.target], true) + " making them the room leader.");
+    } else {
+        if (data.cancel) {
+            chatlog.unshift(displayName(players[data.source], true) + " rescinded their vote to " + displayName(players[data.target], true) + ".");
+        } else {
+            if (data.status == LEADER.NOMINATED) {
+                chatlog.unshift(displayName(players[data.source], true) + " nominated " + displayName(players[data.target], true) + " to be the room leader.");
+            } else {
+                chatlog.unshift(displayName(players[data.source], true) + " voted for " + displayName(players[data.target], true) + ".");
+            }
+        }
     }
     players[data.target].leader = data.status;
     players[data.target].votes = data.votes;
@@ -223,6 +252,7 @@ socket.on("setRound", function(data) {
             break;
         default:
             clock = window.setInterval(updateTime, 500);
+            chatlog.unshift("<u>Start of Round " + round.roundNum + "</u>.");
             genRoundData = ingameRoundData;
             genPlayerList = ingamePlayerList;
             break;
@@ -249,6 +279,7 @@ socket.on("win", function(data) {
         }
     }
 
+    chatlog.unshift("The " + data.winTeam + " team has won.");
     updateDisplay();
 });
 
