@@ -1,5 +1,12 @@
 missingNameTitle = "Anonymous";
 
+TEAM = {
+    UNKNOWN: "unknown",
+    BLUE: "blue",
+    RED: "red",
+    GREY: "grey"
+};
+
 LOBBY_STATUS = {
     PRE_GAME: "pre_game",
     STARTING: "starting",
@@ -22,43 +29,49 @@ ROLES = {
         id: 0,
         display: "Unknown",
         description: "Unknown.",
-        team: "unknown",
-        goal: "Unknown."
+        team: TEAM.UNKNOWN,
+        goal: "Unknown.",
+        endgame_pause_val: 0
     },
     "president": {
         id: 100,
         display: "President",
         description: "The primary character for the blue team.",
-        team: "blue",
-        goal: "Be alive at the end of the game by ending the game in the room without the bomber."
+        team: TEAM.BLUE,
+        goal: "Be alive at the end of the game by ending the game in the room without the bomber.",
+        endgame_pause_val: 0
     },
     "blue": {
         id: 101,
         display: "Blue Team",
         description: "Keep the president alive.",
-        team: "blue",
-        goal: "Assist the president by having the president and the bomber in different rooms at the end of the game."
+        team: TEAM.BLUE,
+        goal: "Assist the president by having the president and the bomber in different rooms at the end of the game.",
+        endgame_pause_val: 0
     },
     "bomber": {
         id: 200,
         display: "Bomber",
         description: "The primary character for the red team. Everyone in the same room as you at the end of the game gains the “dead” condition if you are still alive.",
-        team: "red",
-        goal: "Kill the president by ending the game in the same room as them."
+        team: TEAM.RED,
+        goal: "Kill the president by ending the game in the same room as them.",
+        endgame_pause_val: 0
     },
     "red": {
         id: 201,
         display: "Red Team",
         description: "Help kill the president.",
-        team: "red",
-        goal: "Assist the bomber by having the president and the bomber in the same room at the end of the game."
+        team: TEAM.RED,
+        goal: "Assist the bomber by having the president and the bomber in the same room at the end of the game.",
+        endgame_pause_val: 0
     },
     "gambler": {
         id: 300,
         display: "Gambler",
         description: "After the end of the last round, before player cards are revealed, select the team you believed to have won the game.",
-        team: "grey",
-        goal: "Correctly select which team is going to win the game at the end of the game."
+        team: TEAM.GREY,
+        goal: "Correctly select which team is going to win the game at the end of the game.",
+        endgame_pause_val: 10
     }
 };
 

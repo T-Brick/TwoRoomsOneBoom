@@ -16,8 +16,11 @@ var player = {
     // local vars
     role: "unknown", 
     vote_for: false,
-    revealed: false
+    revealed: false,
+    revealed_for: [],
+    shared_for: []
 };
+var win;
 var role;
 var players = {};
 var rooms;
@@ -33,7 +36,7 @@ var round = {
 
 var startGame = function() {
     if (player.host) {
-        socket.emit("startGame");
+        socket.emit("startGame", "standard");
     }
 };
 
@@ -44,7 +47,14 @@ var shareRole = function(targetId) {
         source: player.id,
         target: targetId
     };
+    var i = player.shared_for.indexOf(targetId);
+    if (i < 0) {
+        player.shared_for.push(targetId);
+    } else {
+        player.shared_for.splice(i, 1);
+    }
     socket.emit("shareRole", data);
+    updateDisplay();
 };
 
 var revealRole = function(targetId) {
@@ -54,7 +64,9 @@ var revealRole = function(targetId) {
         source: player.id,
         target: targetId
     };
+    player.revealed_for.push(targetId);
     socket.emit("revealRole", data);
+    updateDisplay();
 };
 
 var vote = function(targetId) {
@@ -85,6 +97,16 @@ var startRound = function() {
         socket.emit("startRound");
 }
 
+var gamblerVote = function(team) {
+    if (ROLES[player.role] == ROLES["gambler"].id) {
+        data = {
+            id: player.id,
+            team: team
+        };
+        socket.emit("gamblerVote", data);
+    }
+}
+
 socket.on("host", function(playerId) {
     if (playerId == player.id)
         player.host = true;
@@ -106,6 +128,11 @@ socket.on("playerLeave", function(data) {
 
 socket.on("userData", function(data) {
     player = data;
+    player.role = "unknown"; 
+    player.vote_for = false;
+    player.revealed = false;
+    player.revealed_for = [];
+    player.shared_for = [];
     players[data.id] = player;
     updateDisplay();
 });
@@ -114,6 +141,7 @@ socket.on("assignRole", function(data) {
     lobby_status = LOBBY_STATUS.STARTING;
     role = ROLES[data];
     player.role = data;
+    players[player.id].role = data;
     console.log("Assigned role: " + role["display"]);
     updateDisplay();
 });
@@ -147,6 +175,10 @@ socket.on("revealRole", function(data) {
     updateDisplay();
 });
 
+socket.on("gamblerVote", function(data) {
+    // TODO: announce gambler vote
+});
+
 socket.on("vote", function(data) {
     // TODO: announce voting
     if (data.newLeader) {
@@ -178,16 +210,20 @@ socket.on("setRound", function(data) {
             genPlayerList = lobbyPlayerList;
             break;
         case ROUND.PRE_ROUND:
-            genRoundData = preRoundData;
-            genPlayerList = preRoundPlayerList;
+            genRoundData = pregameRoundData;
+            genPlayerList = pregameRoundPlayerList;
             break;
         case ROUND.ENDGAME:
+            genRoundData = endgameRoundData;
+            genPlayerList = endgamePlayerList;
             break;
         case ROUND.POSTGAME:
+            genRoundData = postgameRoundData;
+            genPlayerList = postgamePlayerList;
             break;
         default:
             clock = window.setInterval(updateTime, 500);
-            genRoundData = runningRoundData;
+            genRoundData = ingameRoundData;
             genPlayerList = ingamePlayerList;
             break;
     }
@@ -202,6 +238,23 @@ socket.on("updateRoom", function(data) {
     }
     updateDisplay();
 });
+
+socket.on("win", function(data) {
+    win = data.winTeam == ROLES[player.role].team;
+
+    for (var pid of data.winGamblers) {
+        if (pid == player.id) {
+            win = true;
+            break;
+        }
+    }
+
+    updateDisplay();
+});
+
+var rejoinGame = function() {
+    window.location = window.location;
+}
 
 var joinGame = function() {
     copyLinkBtn.value = window.location.href;

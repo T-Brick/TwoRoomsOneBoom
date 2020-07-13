@@ -35,11 +35,11 @@
                         Go into a seperate room/area/voice call with the people on the list. 
                     </div>
                     <br />
-                    <div id="startRoundBox" style="display: none;">
+                    <div id="startRound" style="display: none;">
                         <input id="startRoundBtn" class="btn" type="button" value="Start Round" onclick="startRound()"></input>
                     </div>
                 </div>
-                <div id="gameInfo" style="display: none;">
+                <div id="gameInfoBox" style="display: none;">
                     <div class="timer" id="timer" style="display: inline;">00:00</div>
                     <br />
                     <div class="roundtext">
@@ -47,13 +47,34 @@
                     </div>
                     <br />
                     <div class="roletext">
-                        Your role is: <em><div id="role" style="display: inline;">Unknown</div></em>.
+                        Your role is: <em><div id="role" style="display: inline;">Unknown</div></em> - 
+                        <div id="role_desc" style="display: inline;">Unknown</div>
                     </div>
+                    <br />
                     <div class="goaltext">
                         Your objective is to: <div id="goal" style="display: inline;">Unknown</div>
                     </div>
                     <br />
                     <div id="chat"></div>
+                </div>
+                <div id="endgameBox" style="display: none;">
+                    <div id="waiting">
+                        Waiting for players to make their last decisions...
+                    </div>
+                    <div id="gambler" style="display: none;">
+                        Select which team you believed to have won.
+                        <input id="gamblerVoteBlue" class="btn" type="button" value="Blue Team" onclick="gamblerVote(TEAM.BLUE)"></input>
+                        <input id="gamblerVoteRed" class="btn" type="button" value="Red Team" onclick="gamblerVote(TEAM.RED)"></input>
+                    </div>
+                </div>
+                <div id="postgameBox" style="display: none;">
+                    <div id="you_win" style="display: none;">
+                        You won the game!
+                    </div>
+                    <div id="you_loose" style="display: none;">
+                        You lost the game...
+                    </div>
+                    <input class="btn" type="button" value="Rejoin" onclick="rejoinGame()"></input>
                 </div>
             </div>
         </div>

@@ -1,23 +1,38 @@
 var playersList = document.getElementById("playersList");
 var playersTitle = document.getElementById("playersTitle");
 
-var settings = document.getElementById("settings");
-var gameInfo = document.getElementById("gameInfo");
+// settings
+var settings_disp = document.getElementById("settings");
 
-var roundText = document.getElementById("round");
-var maxRound = document.getElementById("maxRounds");
-var timer = document.getElementById("timer");
+// preround
+var preRoundBox_disp = document.getElementById("preRoundBox");
+var startRound_disp = document.getElementById("startRound");
 
-var disp_role = document.getElementById("role");
-var goal = document.getElementById("goal");
+// round
+var gameInfoBox_disp = document.getElementById("gameInfoBox");
+var timer_disp = document.getElementById("timer");
+var round_disp = document.getElementById("round");
+var maxRound_disp = document.getElementById("maxRounds");
 
-var preRoundBox = document.getElementById("preRoundBox");
-var startRoundBox = document.getElementById("startRoundBox");
+var role_name_disp = document.getElementById("role");
+var role_desc_disp = document.getElementById("role_desc");
+var goal_disp = document.getElementById("goal");
 
-const lobbyPlayerList = function(players, html) {
+var chat_disp = document.getElementById("chat");
+
+// endgame
+var endgameBox_disp = document.getElementById("endgameBox");
+var waiting_disp = document.getElementById("waiting");
+var gambler_disp = document.getElementById("gambler");
+
+// postgame
+var postgameBox_disp = document.getElementById("postgameBox");
+var win_disp = document.getElementById("you_win");
+var loose_disp = document.getElementById("you_loose");
+
+const lobbyPlayerList = function(html) {
     var pname;
     var count = 0;
-    var colours = ["white", "lightgrey"];
     for (const p of Object.values(players).sort()) {
         if (p.anonymous) pname = missingNameTitle + " " + p.name;
         else pname = p.name;
@@ -31,7 +46,7 @@ const lobbyPlayerList = function(players, html) {
     return [count, html];
 }
 
-const preRoundPlayerList = function(players, html) {
+const pregameRoundPlayerList = function(html) {
     var pname;
     var count = 0;
     for (const p of Object.values(players).sort()) {
@@ -61,12 +76,14 @@ const preRoundPlayerList = function(players, html) {
     return [count, html];
 }
 
-const startingPlayerList = preRoundPlayerList;
+const startingPlayerList = pregameRoundPlayerList;
 
-const ingamePlayerList = function(players, html) {
+const ingamePlayerList = function(html) {
     var pname;
     var count = 0;
-    for (const p of Object.values(players).sort()) {
+    var p;
+    for (const pid of rooms["room" + player.room].players) {
+        p = players[pid];
         if (p.anonymous) pname = missingNameTitle + " " + p.name;
         else pname = p.name;
 
@@ -74,108 +91,185 @@ const ingamePlayerList = function(players, html) {
         if (p.leader == LEADER.IN_OFFICE) pname = "<strong>" + pname + "</strong>";
         else if (p.votes != 0) pname += " <b>(" + p.votes + ")</b>";
 
-        if (p.room == player.room) {
-            html += "<div class='player playerList" + count % 2 + "'>";
+        html += "<div class='player playerList" + count % 2 + "'>";
 
-            html += "<div class='ingame ingame_player_first_group'>";
-            html += "<div id='ingame_player_name'>" + pname + "</div>";
-            if (player.leader == LEADER.IN_OFFICE) {
-                if (p.id != player.id) {
-                    html += "<input class='btn' id='leader_btn' type='button' onclick='transfer(\"" + p.id + "\")' ";
-                    if (p.transfer)
-                        html += "value='Cancel Transfer'></input>";
-                    else
-                        html += "value='Transfer'></input>";
-                } else {
-                    // TODO: add resigning
-                }
-            }
-            if (player.leader != LEADER.IN_OFFICE) {
-                if (p.leader == LEADER.NONE) {
-                    html += "<input class='btn' id='leader_btn' type='button' value='Nominate' onclick='vote(\"" + p.id + "\")'></input>";
-                } else if (p.leader == LEADER.NOMINATED && !p.voted_for) {
-                    html += "<input class='btn' id='leader_btn' type='button' value='Vote' onclick='vote(\"" + p.id + "\")'></input>";
-                } else if (p.leader == LEADER.NOMINATED && p.voted_for) {
-                    html += "<input class='btn' id='leader_btn' type='button' value='Unvote' onclick='vote(\"" + p.id + "\")'></input>";
-                }
-            }
-            html += "</div>";
-
-            var disp_role = "<div id='ingame_player_role'>" + ROLES[p.role].display + "</div>";
-            html += "<div class='ingame ingame_player_role_group'>";
-            
+        html += "<div class='ingame ingame_player_first_group'>";
+        html += "<div id='ingame_player_name'>" + pname + "</div>";
+        if (player.leader == LEADER.IN_OFFICE) {
             if (p.id != player.id) {
-                if (p.role == "unknown") {                
-                    html += "<input class='btn' id='share_role_btn' type='button' value='Share Role' ";
-                    html += "onclick='shareRole(\"" + p.id + "\")'></input>";
-                } else {
-                    html += disp_role;
-                }
-                if (!p.revealed) {
-                    html += "<input class='btn' id='reveal_role_btn' type='button' value='Reveal Role' ";
-                    html += "onclick='revealRole(\"" + p.id + "\")'></input>";
-                }
+                html += "<input class='btn' id='leader_btn' type='button' onclick='transfer(\"" + p.id + "\")' ";
+                if (p.transfer)
+                    html += "value='Cancel Transfer'></input>";
+                else
+                    html += "value='Transfer'></input>";
+            } else {
+                // TODO: add resigning
+            }
+        }
+        if (player.leader != LEADER.IN_OFFICE) {
+            if (p.leader == LEADER.NONE) {
+                html += "<input class='btn' id='leader_btn' type='button' value='Nominate' onclick='vote(\"" + p.id + "\")'></input>";
+            } else if (p.leader == LEADER.NOMINATED && !p.voted_for) {
+                html += "<input class='btn' id='leader_btn' type='button' value='Vote' onclick='vote(\"" + p.id + "\")'></input>";
+            } else if (p.leader == LEADER.NOMINATED && p.voted_for) {
+                html += "<input class='btn' id='leader_btn' type='button' value='Unvote' onclick='vote(\"" + p.id + "\")'></input>";
+            }
+        }
+        html += "</div>";
+
+        var disp_role = "<div id='ingame_player_role'>" + ROLES[p.role].display + "</div>";
+        html += "<div class='ingame ingame_player_role_group'>";
+        
+        if (p.id != player.id) {
+            if (p.role == "unknown") {
+                var shareTitle = "";
+                if (player.shared_for.indexOf(p.id) < 0) shareTitle = "Share Role";
+                else shareTitle = "Unshare Role";
+
+                html += "<input class='btn' id='share_role_btn' type='button' value='" + shareTitle + "' ";
+                html += "onclick='shareRole(\"" + p.id + "\")'></input>";
             } else {
                 html += disp_role;
             }
-            html += "</div>";
-
-            html += "</div>";
-            count++;
+            if (!p.revealed && player.revealed_for.indexOf(p.id) < 0) {
+                html += "<input class='btn' id='reveal_role_btn' type='button' value='Reveal Role' ";
+                html += "onclick='revealRole(\"" + p.id + "\")'></input>";
+            }
+        } else {
+            html += disp_role;
         }
+        html += "</div>";
+
+        html += "</div>";
+        count++;
     }
     return [count, html];
 }
 
+const endgamePlayerList = function(html) {
+    var pname;
+    var count = 0;
+    var createList = function(roomNum) {
+        var p;
+        for (const pid of rooms["room" + roomNum].players) {
+            p = players[pid];
+            if (p.anonymous) pname = missingNameTitle + " " + p.name;
+            else pname = p.name;
+
+            html += "<div class='player playerList" + count % 2 + "'>";
+
+            html += "<div class='ingame ingame_player_first_group'>";
+            html += "<div id='ingame_player_name'>" + pname + "</div>";
+            html += "</div>";
+
+            html += "<div class='ingame ingame_player_role_group'>";
+            html += "<div id='ingame_player_role'>" + ROLES[p.role].display + "</div>";
+            html += "</div>";
+
+            html += "</div>";
+
+            count++;
+        }
+    }
+
+    createList(1);
+    html += "<br /><br />";
+    createList(2);
+
+    return [count, html];
+}
+
+const postgamePlayerList = endgamePlayerList;
+
+const clearDisplay = function() {
+    settings_disp.style = "display: none;";
+
+    preRoundBox_disp.style = "display: none;";
+    startRound_disp.style = "display: none;";
+
+    gameInfoBox_disp.style = "display: none;";
+
+    endgameBox_disp.style = "display: none;";
+    waiting_disp.style = "display: none;";
+    gambler_disp.style = "display: none;";
+
+    postgameBox_disp.style = "display: none;";
+    win_disp.style = "display: none;";
+    loose_disp.style = "display: none;";
+}
+
 const lobbyRoundData = function() {
+    clearDisplay();
+
     if(player.host)
-        settings.style = "display: block;";
+        settings_disp.style = "display: block;";
 }
 
 const startingRoundData = function() {
-    settings.style = "display: none;";
+    clearDisplay();
 };
 
-const preRoundData = function() {
-    settings.style = "display: none;";
-    gameInfo.style = "display: none;";
-    preRoundBox.style = "display: block;";
+const pregameRoundData = function() {
+    clearDisplay();
+    preRoundBox_disp.style = "display: block;";
 
     if (player.host)
-        startRoundBox.style = "display: block;";
+        startRound_disp.style = "display: block;";
 };
 
-const runningRoundData = function() {
-    disp_role.innerHTML = role.display;
-    goal.innerHTML = role.goal;
+const ingameRoundData = function() {
+    role_name_disp.innerHTML = role.display;
+    role_desc_disp.innerHTML = role.description;
+    goal_disp.innerHTML = role.goal;
 
-    roundText.innerHTML = round.roundNum;
-    maxRound.innerHTML = round.maxRoundNum;
+    round_disp.innerHTML = round.roundNum;
+    maxRound_disp.innerHTML = round.maxRoundNum;
 
-    startRoundBox.style = "display: none;";
-    preRoundBox.style = "display: none;";
-    settings.style = "display: none;";
-    gameInfo.style = "display: block;";
+    clearDisplay();
+    gameInfoBox_disp.style = "display: block;";
+};
+
+const endgameRoundData = function() {
+    clearDisplay();
+    endgameBox_disp.style = "display: block;";
+    switch (player.role) {
+        case "gambler":
+            gambler_disp.style = "display: block;";
+            break;
+        default:
+            waiting_disp.style = "display: block;";
+            break;
+    }
+};
+
+const postgameRoundData = function() {
+    clearDisplay();
+    postgameBox_disp.style = "display: block;";
+    if (win) {
+        win_disp.style = "display: block;";
+    } else {
+        loose_disp.style = "display: block;";
+    }
 };
 
 const updateTime = function() {
     var time_ms = round.endtime - new Date().getTime();
     if (time_ms < 0) {
         clearInterval(clock);
-        timer.innerHTML = "0:00";
+        timer_disp.innerHTML = "0:00";
         return;
     }
     var time_min = Math.floor(time_ms / (1000 * 60));
     var time_sec = Math.floor(time_ms / 1000 % 60);
 
-    timer.innerHTML = time_min + ":" + (time_sec < 10 ? "0" + time_sec : time_sec);
+    timer_disp.innerHTML = time_min + ":" + (time_sec < 10 ? "0" + time_sec : time_sec);
 }
 
 var genPlayerList = lobbyPlayerList;
 var genRoundData = lobbyRoundData;
 
 const updateDisplay = function() {
-    var list = genPlayerList(players, "");
+    var list = genPlayerList("");
     genRoundData();
 
     playersList.innerHTML = list[1];
