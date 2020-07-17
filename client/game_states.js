@@ -49,12 +49,12 @@ ROLES = {
         goal: "You must card-share with the president before the game is over for the blue team to win.",
         endgame_pause_val: 0
     },
-    "knight": {
+    "boom": {
         id: 120,
-        display: "Tuesday Knight",
-        description: "You have the HUG power, when you card share with the bomber everyone in the room dies except the president and the game ends.",
-        team: TEAM.RED,
-        goal: "Assist the president by having the president and the bomber in different rooms at the end of the game, or card-share with the bomber.",
+        display: "Dr. Boom",
+        description: "You have the BOOM power, when you card share with the president everyone in the room dies and the game ends. This doesn't work if you reveal (not share) your card to the president.",
+        team: TEAM.BLUE,
+        goal: "Assist the president by having the president and the bomber in different rooms at the end of the game. Don't card share with the president.",
         endgame_pause_val: 0
     },
     "blue": {
@@ -81,12 +81,12 @@ ROLES = {
         goal: "You must card-share with the bomber before the game is over for the red team to win.",
         endgame_pause_val: 0
     },
-    "boom": {
+    "knight": {
         id: 220,
-        display: "Dr. Boom",
-        description: "You have the BOOM power, when you card share with the president everyone in the room dies and the game ends.",
+        display: "Tuesday Knight",
+        description: "You have the HUG power, when you card share with the bomber everyone in the room dies except the president and the game ends. This doesn't work if you reveal (not share) your card to the bomber.",
         team: TEAM.RED,
-        goal: "Assist the bomber by having the president and the bomber in the same room at the end of the game, or card-share with the president.",
+        goal: "Assist the bomber by having the president and the bomber in the same room at the end of the game. Don't card share with the bomber.",
         endgame_pause_val: 0
     },
     "red": {

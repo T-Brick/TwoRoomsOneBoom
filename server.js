@@ -49,6 +49,7 @@ var addPlayerData = function(socket, playerId, data) {
             },
             private: {
                 role: "unknown",
+                role_knowledge: [],
                 sharing: [],
                 voting: [],
                 endgame_choice: null
@@ -306,7 +307,20 @@ var endGame = function(lobbyName) {
         winGamblers: []
     };
 
-    lobby.rooms["room" + bomberRoom].players.forEach(pid => players[pid].public.dead = true);
+    if (lobby.rolesmap["engineer"] != null) {
+        var i = players[lobby.rolesmap["bomber"][0]].private.role_knowledge.indexOf(lobby.rolesmap["engineer"][0]);
+        var j = players[lobby.rolesmap["engineer"][0]].private.role_knowledge.indexOf(lobby.rolesmap["bomber"][0]);
+        lobby.rooms["room" + bomberRoom].players.forEach(pid => {
+            var dead = players[pid].public.dead;
+            players[pid].public.dead = dead || (i >= 0 && j>= 0);
+        });
+    }
+    if (lobby.rolesmap["doctor"] != null) {
+        var i = players[lobby.rolesmap["president"][0]].private.role_knowledge.indexOf(lobby.rolesmap["doctor"][0]);
+        var j = players[lobby.rolesmap["doctor"][0]].private.role_knowledge.indexOf(lobby.rolesmap["president"][0]);
+        var dead = players[lobby.rolesmap["president"][0]].public.dead
+        players[lobby.rolesmap["president"][0]].public.dead = dead || (i < 0 || j < 0);
+    }
     results.winTeam = players[lobby.rolesmap["president"][0]].public.dead ? TEAM.RED : TEAM.BLUE;
 
     if (lobby.rolesmap["gambler"] != null) {
@@ -448,6 +462,9 @@ io.sockets.on("connection", function(socket) {
             };
             players[data.target].socket.emit("revealRole", roleData);
 
+            players[playerId].private.role_knowledge.push(data.target);
+            players[data.target].private.role_knowledge.push(playerId);
+
             data.shared = true;
             data.mutual = true;
             data.cancel = false;
@@ -471,6 +488,8 @@ io.sockets.on("connection", function(socket) {
             endgame: false
         };
         players[data.target].socket.emit("revealRole", roleData);
+
+        players[data.target].private.role_knowledge.push(playerId);
 
         data.shared = true;
         data.mutual = false;

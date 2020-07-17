@@ -28,7 +28,7 @@ var gambler_disp = document.getElementById("gambler");
 // postgame
 var postgameBox_disp = document.getElementById("postgameBox");
 var win_disp = document.getElementById("you_win");
-var loose_disp = document.getElementById("you_loose");
+var lose_disp = document.getElementById("you_lose");
 
 const displayName = function(player, bold = false) {
     var name;
@@ -36,7 +36,7 @@ const displayName = function(player, bold = false) {
     else name = player.name;
 
     if (bold) name = "<b>" + name + "</b>";
-    
+
     return name;
 }
 
@@ -202,7 +202,7 @@ const clearDisplay = function() {
 
     postgameBox_disp.style = "display: none;";
     win_disp.style = "display: none;";
-    loose_disp.style = "display: none;";
+    lose_disp.style = "display: none;";
 }
 
 const lobbyRoundData = function() {
@@ -259,7 +259,7 @@ const postgameRoundData = function() {
     if (win) {
         win_disp.style = "display: block;";
     } else {
-        loose_disp.style = "display: block;";
+        lose_disp.style = "display: block;";
     }
 };
 
