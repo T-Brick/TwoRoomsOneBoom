@@ -34,31 +34,79 @@
             "oddGambler": true,
             "specialRoles": ["president", "bomber", "doctor", "engineer", "knight", "boom"],
             "genericRoles": []
+        },
+        "one_loser": {
+            "roundTimes": [3,2,1],
+            "hostages": [1,1,1],
+            "oddGambler": true,
+            "specialRoles": ["president", "bomber", "rival", "intern", "survivor", "victim"],
+            "genericRoles": []
+        },
+        "love_hate": {
+            "roundTimes": [3,2,1],
+            "hostages": [1,1,1],
+            "oddGambler": true,
+            "specialRoles": ["president", "bomber", "ahab", "moby", "wife", "mistress"],
+            "genericRoles": []
         }
     },
     "gamemodes": {
         "Standard": {
             "std_dev": {
                 "players": [2,3,4,5],
-                "ruleset": "std_dev"
+                "ruleset": "std_dev",
+                "dev": true
             },
             "std_small": {
                 "players": [6,7,8,9,10],
-                "ruleset": "std_small"
+                "ruleset": "std_small",
+                "dev": false
             },
             "std_medium": {
                 "players": [11,12,13,14,15,16,17,18,19,20,21],
-                "ruleset": "std_medium"
+                "ruleset": "std_medium",
+                "dev": false
             },
             "std_large": {
                 "players": [22,23,24,25,26,27,28,29,30],
-                "ruleset": "std_large"
+                "ruleset": "std_large",
+                "dev": false
             }
         },
         "Instant Death": {
-            "default": {
+            "death_dev": {
+                "players": [2,3,4,5],
+                "ruleset": "instant_death",
+                "dev": true
+            },
+            "death_default": {
                 "players": [6,7],
-                "ruleset": "instant_death"
+                "ruleset": "instant_death",
+                "dev": false
+            }
+        },
+        "One Loser": {
+            "one_loser_dev": {
+                "players": [2,3,4,5],
+                "ruleset": "one_loser",
+                "dev": true
+            },
+            "one_loser_default": {
+                "players": [6,7],
+                "ruleset": "one_loser",
+                "dev": false
+            }
+        },
+        "Love and Hate": {
+            "one_loser_dev": {
+                "players": [2,3,4,5],
+                "ruleset": "love_hate",
+                "dev": true
+            },
+            "one_loser_default": {
+                "players": [6,7],
+                "ruleset": "love_hate",
+                "dev": false
             }
         }
     }

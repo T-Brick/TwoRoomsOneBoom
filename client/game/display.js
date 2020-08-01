@@ -3,6 +3,8 @@ var playersTitle = document.getElementById("playersTitle");
 
 // settings
 var settings_disp = document.getElementById("settings");
+var gamemode_list_disp = document.getElementById("gamemode_list");
+var revealing_disp = document.getElementById("revealing");
 
 // preround
 var preRoundBox_disp = document.getElementById("preRoundBox");
@@ -138,7 +140,7 @@ const ingamePlayerList = function(html) {
             } else {
                 html += disp_role;
             }
-            if (!p.revealed && player.revealed_for.indexOf(p.id) < 0) {
+            if (settings.revealing && !p.revealed && player.revealed_for.indexOf(p.id) < 0) {
                 html += "<input class='btn' id='reveal_role_btn' type='button' value='Reveal Role' ";
                 html += "onclick='revealRole(\"" + p.id + "\")'></input>";
             }
@@ -280,7 +282,7 @@ var genChat = function() {
     var html = "";
     chatlog.forEach(c => html += "<div class='msg'>" + c + "</div>");
     chat_disp.innerHTML = html;
-    chat_disp.scrollTop = 0;
+    chat_disp.scrollTop = chat_disp.scrollHeight;
 }
 
 var genPlayerList = lobbyPlayerList;

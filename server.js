@@ -2,7 +2,11 @@ var express = require("express");
 var app = express();
 var uniqid = require("uniqid");
 var xss = require("xss");
+const args = process.argv.slice(2);
 const root_dir = __dirname;
+
+var dev = false;
+var port = 3000;
 
 var server = require("http").createServer(app);
 
@@ -82,7 +86,12 @@ var createLobby = function(lobbyName) {
             gambler: []
         },
         ruleset: null,
+        clock: null,
         rolesmap: {},
+        settings: {
+            spectating: false,
+            revealing: true
+        },
         rooms: {
             room1: {
                 players: [],
@@ -99,11 +108,8 @@ var createLobby = function(lobbyName) {
 }
 
 var emitToList = function(list, event, data) {
-    for (var pid of list) {
-        if(players[pid].socket != null) {
-            players[pid].socket.emit(event, data);
-        }
-    }
+    for (var pid of list) 
+        emitToPlayer(pid, event, data);
 }
 
 var emitToLobby = function(lobbyName, event, data) {
@@ -112,6 +118,11 @@ var emitToLobby = function(lobbyName, event, data) {
 
 var emitToRoom = function(lobbyName, roomNum, event, data) {
     emitToList(lobbies[lobbyName].rooms["room" + roomNum].players, event, data);
+}
+
+var emitToPlayer = function(pid, event, data) {
+    if (players[pid] != null && players[pid].socket != null)
+        players[pid].socket.emit(event, data);
 }
 
 var genMissingNameNum = function(list) {
@@ -137,8 +148,9 @@ var hasDecisions = function(lobbyName) {
 
 var assignRole = function(unassignedPlayers, role) {
     var p = players[pollRand(unassignedPlayers)];
+    if (p == null) return null;
     p.private.role = role;
-    p.socket.emit("assignRole", role);
+    emitToPlayer(p.public.id, "assignRole", role);
     return p;
 }
 
@@ -149,7 +161,8 @@ var assignRoles = function(lobby, rulegroup) {
     var i;
 
     var ruleset = null;
-    for(var rules of Object.values(game_settings["gamemodes"][rulegroup])) {
+    for(var rules of Object.values(game_settings["gamemodes"][rulegroup.gamemode])) {
+        if (rules["dev"] && !dev) continue;
         if (rules["players"].includes(unassignedPlayers.length)) {
             ruleset = game_settings["rules"][rules["ruleset"]];
             break;
@@ -164,6 +177,7 @@ var assignRoles = function(lobby, rulegroup) {
     // assign gambler
     if (ruleset["oddGambler"] && unassignedPlayers.length % 2 == 1) {
         p = assignRole(unassignedPlayers, "gambler");
+        if (p == null) return -1;
 
         lobby.endgame_pause["gambler"].push(p.public.id);
         if (lobby.rolesmap["gambler"] == null) lobby.rolesmap["gambler"] = [p.public.id];
@@ -173,6 +187,8 @@ var assignRoles = function(lobby, rulegroup) {
     // special roles
     for(i = 0; i < ruleset["specialRoles"].length; i++) {
         p = assignRole(unassignedPlayers, ruleset["specialRoles"][i]);
+        if (p == null) return 1;
+
         if (ROLES[ruleset["specialRoles"][i]].endgame_pause_val > 0)
             lobby.endgame_pause[ruleset["specialRoles"][i]].push(p.public.id);
         if (lobby.rolesmap[ruleset["specialRoles"][i]] == null) lobby.rolesmap[ruleset["specialRoles"][i]] = [p.public.id];
@@ -183,6 +199,7 @@ var assignRoles = function(lobby, rulegroup) {
     i = 0;
     while (unassignedPlayers.length > 0) {
         p = assignRole(unassignedPlayers, ruleset["genericRoles"][i]);
+        if (p == null) return 1;
 
         if (ROLES[ruleset["genericRoles"][i]].endgame_pause_val > 0)
             lobby.endgame_pause[ruleset["genericRoles"][i]].push(p.public.id);
@@ -266,6 +283,9 @@ var endRound = function(lobbyName) {
 }
 
 var makeEndgameDecision = function(playerId, data) {
+    if (data == null || data.team == null)
+        return;
+
     var i;
     switch (players[playerId].private.role) {
         case "gambler":
@@ -302,9 +322,10 @@ var endGame = function(lobbyName) {
     });
 
     var bomberRoom = players[lobby.rolesmap["bomber"][0]].public.room;
+    var presidentRoom = players[lobby.rolesmap["president"][0]].public.room;
     var results = {
         winTeam: null,
-        winGamblers: []
+        winGrey: []
     };
 
     if (lobby.rolesmap["engineer"] != null) {
@@ -323,11 +344,54 @@ var endGame = function(lobbyName) {
     }
     results.winTeam = players[lobby.rolesmap["president"][0]].public.dead ? TEAM.RED : TEAM.BLUE;
 
+    // WC: picking the right team
     if (lobby.rolesmap["gambler"] != null) {
         lobby.rolesmap["gambler"].forEach(pid => {
             if (players[pid].private.endgame_choice == results.winTeam)
-                results.winGamblers.push(pid);
+                results.winGrey.push(pid);
         });
+    }
+    // WC: dif room than pres
+    if (lobby.rolesmap["rival"] != null) {
+        lobby.rolesmap["rival"].forEach(pid => {
+            if (players[pid].public.room != presidentRoom)
+                results.winGrey.push(pid);
+        });
+    }
+    // WC: dif room than bomber
+    if (lobby.rolesmap["survivor"] != null) {
+        lobby.rolesmap["survivor"].forEach(pid => {
+            if (players[pid].public.room != bomberRoom)
+                results.winGrey.push(pid);
+        });
+    }
+    // WC: same room as pres
+    if (lobby.rolesmap["intern"] != null) {
+        lobby.rolesmap["intern"].forEach(pid => {
+            if (players[pid].public.room == presidentRoom)
+                results.winGrey.push(pid);
+        });
+    }
+    // WC: same room as bomber
+    if (lobby.rolesmap["victim"] != null) {
+        lobby.rolesmap["victim"].forEach(pid => {
+            if (players[pid].public.room == bomberRoom)
+                results.winGrey.push(pid);
+        });
+    }
+    // WC: ahab - moby with bomber without self; moby - ahab with bomber without self
+    if (lobby.rolesmap["ahab"] != null && lobby.rolesmap["moby"] != null) {
+        var ahabRoom = players[lobby.rolesmap["ahab"][0]].public.room;
+        var mobyRoom = players[lobby.rolesmap["moby"][0]].public.room;
+        if (ahabRoom != bombRoom && mobyRoom == bombRoom) results.winGrey.push(lobby.rolesmap["ahab"][0]);
+        if (mobyRoom != bombRoom && ahabRoom == bombRoom) results.winGrey.push(lobby.rolesmap["moby"][0]);
+    }
+    // WC: wife - with president without mistress; mistress - with president without wife
+    if (lobby.rolesmap["wife"] != null && lobby.rolesmap["mistress"] != null) {
+        var mistressRoom = players[lobby.rolesmap["mistress"][0]].public.room;
+        var wifeRoom = players[lobby.rolesmap["wife"][0]].public.room;
+        if (wifeRoom != presidentRoom && mistressRoom == presidentRoom) results.winGrey.push(lobby.rolesmap["mistress"][0]);
+        if (mistressRoom != presidentRoom && wifeRoom == presidentRoom) results.winGrey.push(lobby.rolesmap["wife"][0]);
     }
 
     emitToLobby(lobbyName, "win", results);
@@ -337,14 +401,43 @@ var endGame = function(lobbyName) {
     }
     lobbies[lobbyName] = null;
     delete lobbies[lobbyName];
-}
+};
+
+var roleShareSpecial = function(playerId, targetId) {
+    var targetRole = players[targetId].private.role;
+    var lobby = lobbies[players[playerId].public.lobby];
+    var room = lobby.rooms["room" + players[playerId].public.room]
+    switch (players[playerId].private.role) {
+        case "boom":
+            if (targetRole == "president") {
+                clearInterval(lobby.clock);
+                lobby.round.roundNum = lobby.round.maxRoundNum;
+                room.players.forEach((pid) => players[pid].public.dead = true);
+                
+                endRound(lobby.name);
+            }
+            break;
+        case "knight":
+            if (targetRole == "bomber") {
+                clearInterval(lobby.clock);
+                lobby.round.roundNum = lobby.round.maxRoundNum;
+                room.players.forEach((pid) => {
+                    if (players[pid].private.role != "president") 
+                        players[pid].public.dead = true;
+                });
+
+                endRound(lobby.name);
+            }
+            break;
+    }
+};
 
 app.get("/game/:lobbyName", function(req, res) {
     var lobbyName = req.params["lobbyName"].trim();
     if (lobbyName != "") {
         if (lobbies[lobbyName] == null) {
             createLobby(lobbyName);
-        } else if(lobbies[lobbyName].status != LOBBY_STATUS.PRE_GAME) {
+        } else if(!lobbies[lobbyName].settings.spectating && lobbies[lobbyName].status != LOBBY_STATUS.PRE_GAME) {
             res.sendFile(gameFailURL);
             return;
         }
@@ -368,11 +461,14 @@ io.sockets.on("connection", function(socket) {
 
     socket.on("joinGame", function(data) {
        var uid = addPlayerData(socket, playerId, data);
-       socket.emit("joinGame", uid);
+       emitToPlayer(playerId, "joinGame", uid);
     });
 
     socket.on("userData", function(data) {
-        var lobbyName = data.lobbyName
+        if (data == null || lobbies[data.lobbyName] == null) return;
+
+        var lobbyName = data.lobbyName;
+
         if (data.playerId == "" || data.playerName == "") {
             // anonymous player join
             lobbies[lobbyName].missing_names.sort();
@@ -385,7 +481,7 @@ io.sockets.on("connection", function(socket) {
             if(addPlayerData(socket, playerId, playerData) < 0)
                 return;
             lobbies[lobbyName].missing_names.push(missingNameNum);
-            socket.emit("userData", players[playerId].public);
+            emitToPlayer(playerId, "userData", players[playerId].public);
         } else {
             playerId = data.playerId;
             if (players[playerId] == null) {
@@ -399,31 +495,40 @@ io.sockets.on("connection", function(socket) {
 
         if (lobbies[lobbyName].players.length == 0) {
             players[playerId].public.host = true;
-            socket.emit("host", playerId);
+            emitToPlayer(playerId, "host", playerId);
         }
 
-        lobbies[lobbyName].players.forEach(pid => socket.emit("playerJoin", players[pid].public));
+        lobbies[lobbyName].players.forEach((pid) => emitToPlayer(playerId, "playerJoin", players[pid].public));
         lobbies[lobbyName].players.push(playerId);
         emitToLobby(lobbyName, "playerJoin", players[playerId].public);
     });
 
     socket.on("startGame", function(data) {
+        if (data == null) return;
+            
         if (players[playerId].public.host) {
             var lobby = lobbies[players[playerId].public.lobby];
-            if (data == null) data = "Standard";
+            if (data.gamemode == null) data.gamemode = "Standard";
             if (assignRoles(lobby, data) < 0) {
                 return;
             }
 
+            lobbies[players[playerId].public.lobby].settings.spectating = data.spectating;
+            lobbies[players[playerId].public.lobby].settings.revealing = data.revealing;
+
             console.log("Starting lobby " + players[playerId].public.lobby + " with " 
-                        + lobbies[players[playerId].public.lobby].players.length + " players");
+                        + lobbies[players[playerId].public.lobby].players.length + " players with gamemode "
+                        + data.gamemode);
             assignRooms(lobby);
             lobby.round.status = ROUND.PRE_ROUND;
+            emitToLobby(lobby.name, "setSettings", lobby.settings);
             emitToLobby(lobby.name, "setRound", lobby.round);
         }
     });
 
     socket.on("shareRole", function(data) {
+        if (data == null || players[data.target] == null) return;
+
         var room = players[data.target].public.room;
         var lobby = players[data.target].public.lobby;
 
@@ -452,7 +557,7 @@ io.sockets.on("connection", function(socket) {
                 mutual: true,
                 endgame: false
             };
-            socket.emit("revealRole", roleData);
+            emitToPlayer(playerId, "revealRole", roleData);
 
             roleData = {
                 id: playerId,
@@ -460,7 +565,7 @@ io.sockets.on("connection", function(socket) {
                 mutual: true,
                 endgame: false
             };
-            players[data.target].socket.emit("revealRole", roleData);
+            emitToPlayer(data.target, "revealRole", roleData);
 
             players[playerId].private.role_knowledge.push(data.target);
             players[data.target].private.role_knowledge.push(playerId);
@@ -470,10 +575,14 @@ io.sockets.on("connection", function(socket) {
             data.cancel = false;
             data.endgame = false;
             emitToRoom(lobby, room, "shareRole", data);
+
+            roleShareSpecial(playerId, data.target);
         }
     });
 
     socket.on("revealRole", function(data) {
+        if (data == null || players[data.target] == null) return;
+
         var room = players[data.target].public.room;
         var lobby = players[data.target].public.lobby;
 
@@ -487,7 +596,7 @@ io.sockets.on("connection", function(socket) {
             mutual: false,
             endgame: false
         };
-        players[data.target].socket.emit("revealRole", roleData);
+        emitToPlayer(data.target, "revealRole", roleData);
 
         players[data.target].private.role_knowledge.push(playerId);
 
@@ -496,10 +605,14 @@ io.sockets.on("connection", function(socket) {
         data.cancel = false;
         data.endgame = false;
         emitToRoom(lobby, room, "shareRole", data);
+
+        roleShareSpecial(playerId, data.target);
     });
 
     socket.on("vote", function(data) {
-        if (players[data.target].public.room != players[playerId].public.room
+        if (data == null
+        ||  players[data.target] == null
+        ||  players[data.target].public.room != players[playerId].public.room
         ||  players[data.target].public.lobby != players[playerId].public.lobby
         ||  data.room != players[playerId].public.room
         ||  data.lobby != players[playerId].public.lobby)
@@ -546,7 +659,9 @@ io.sockets.on("connection", function(socket) {
     });
 
     socket.on("transfer", function(data) {
-        if (players[data.target].public.room != players[playerId].public.room
+        if (data == null
+        ||  players[data.target] == null
+        ||  players[data.target].public.room != players[playerId].public.room
         ||  players[data.target].public.lobby != players[playerId].public.lobby
         ||  players[playerId].public.leader != LEADER.IN_OFFICE)
             return;
@@ -578,7 +693,7 @@ io.sockets.on("connection", function(socket) {
             var time = ruleset["roundTimes"][lobby.round.roundNum - 1];
             lobby.round.duration = time * 60 * 1000;
             lobby.round.endtime = new Date().getTime() + lobby.round.duration;
-            setTimeout(endRound, lobby.round.duration, lobby.name);
+            lobby.clock = setTimeout(endRound, lobby.round.duration, lobby.name);
 
             lobby.round.transfers = ruleset["hostages"][lobby.round.roundNum - 1];
             emitToLobby(lobby.name, "setRound", lobby.round);
@@ -617,5 +732,15 @@ io.sockets.on("connection", function(socket) {
     });
 });
 
-server.listen(3000);
-console.log("Server started!");
+var parseArgs = function(args) {
+    var portArg = args.indexOf("-port");
+    if (portArg >= 0) port = args[portArg + 1];
+
+    var devArg = args.indexOf("-dev");
+    dev = devArg >= 0;
+}
+
+parseArgs(args);
+server.listen(port);
+console.log("Server started on port " + port + ".");
+if (dev) console.log("Development mode enabled.");

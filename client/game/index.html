@@ -29,6 +29,20 @@
             </div>
             <div class="column">
                 <div id="settings" style="display: none;">
+                    <div class="gamemode">
+                        <label for="gamemode_list">Game Mode:</label>
+                        <select id="gamemode_list">
+                            <option value="Standard">Standard</option>
+                            <option value="Instant Death">Instant Death</option>
+                            <option value="One Loser">At Least One Loser</option>
+                            <option value="Love and Hate">Game of Love and Hate</option>
+                        </select>
+                    </div>
+                    <div class="action_settings">
+                        <label for="revealing">Allow role revealing:</label>
+                        <input id="revealing" type="checkbox" checked></input>
+                    </div>
+                    <br />
                     <input id="startGame" class="btn" type="button" value="Start Game" onclick="startGame()"></input>
                 </div>
                 <div id="preRoundBox" style="display: none;">

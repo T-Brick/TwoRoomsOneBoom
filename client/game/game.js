@@ -24,6 +24,10 @@ var win;
 var role;
 var players = {};
 var rooms;
+var settings = {
+    spectating: false,
+    revealing: true
+};
 var lobby_status = LOBBY_STATUS.PRE_GAME;
 var clock;
 var round = {
@@ -35,10 +39,17 @@ var round = {
 };
 
 var chatlog = [];
+var chat = (msg) => chatlog.push(msg);
 
 var startGame = function() {
     if (player.host) {
-        socket.emit("startGame", "Standard");
+        console.log(revealing_disp.checked);
+        var data = {
+            gamemode: gamemode_list_disp.value,
+            spectating: false, // todo: implement
+            revealing: revealing_disp.checked
+        };
+        socket.emit("startGame", data);
     }
 };
 
@@ -145,7 +156,7 @@ socket.on("assignRole", function(data) {
     role = ROLES[data];
     player.role = data;
     players[player.id].role = data;
-    chatlog.unshift("Assigned role: " + role["display"]);
+    chat("Assigned role: " + role["display"]);
     console.log("Assigned role: " + role["display"]);
     updateDisplay();
 });
@@ -155,7 +166,7 @@ socket.on("assignRooms", function(data) {
     for (var i of [1,2]) {
         for (var pid of rooms["room" + i].players) {
             // if (players[pid].transfer) {
-            //     chatlog.unshift(displayName(players[pid]) + " was transferred.");
+            //     chat(displayName(players[pid]) + " was transferred.");
             // }
             players[pid].room = i;
             players[pid].transfer = false;
@@ -175,13 +186,13 @@ socket.on("assignRooms", function(data) {
 socket.on("shareRole", function(data) {
     if (!data.endgame) {
         if (data.cancel) {   
-            chatlog.unshift(displayName(players[data.source], true) + " rescinded their offer to share roles with " + displayName(players[data.target], true) + ".");
+            chat(displayName(players[data.source], true) + " rescinded their offer to share roles with " + displayName(players[data.target], true) + ".");
         } else if (!data.mutual) {
-            chatlog.unshift(displayName(players[data.source], true) + " revealed their role to " + displayName(players[data.target], true) + ".");
+            chat(displayName(players[data.source], true) + " revealed their role to " + displayName(players[data.target], true) + ".");
         } else if (data.shared) {
-            chatlog.unshift(displayName(players[data.source], true) + " and " + displayName(players[data.target], true) + " shared their roles.");
+            chat(displayName(players[data.source], true) + " and " + displayName(players[data.target], true) + " shared their roles.");
         } else {
-            chatlog.unshift(displayName(players[data.source], true) + " offered to share roles with " + displayName(players[data.target], true) + ".");
+            chat(displayName(players[data.source], true) + " offered to share roles with " + displayName(players[data.target], true) + ".");
         }
     }
     updateDisplay();
@@ -194,7 +205,7 @@ socket.on("revealRole", function(data) {
 });
 
 socket.on("gamblerVote", function(data) {
-    chatlog.unshift(displayName(players[data.id], true) + " thinks the " + data.team + " team will win.");
+    chat(displayName(players[data.id], true) + " thinks the " + data.team + " team will win.");
     updateDisplay();
 });
 
@@ -209,15 +220,15 @@ socket.on("vote", function(data) {
         player.leader = LEADER.NONE;
         player.votes = 0;
         player.voting_for = false;
-        chatlog.unshift(displayName(players[data.source], true) + " voted for " + displayName(players[data.target], true) + " making them the room leader.");
+        chat(displayName(players[data.source], true) + " voted for " + displayName(players[data.target], true) + " making them the room leader.");
     } else {
         if (data.cancel) {
-            chatlog.unshift(displayName(players[data.source], true) + " rescinded their vote to " + displayName(players[data.target], true) + ".");
+            chat(displayName(players[data.source], true) + " rescinded their vote to " + displayName(players[data.target], true) + ".");
         } else {
             if (data.status == LEADER.NOMINATED) {
-                chatlog.unshift(displayName(players[data.source], true) + " nominated " + displayName(players[data.target], true) + " to be the room leader.");
+                chat(displayName(players[data.source], true) + " nominated " + displayName(players[data.target], true) + " to be the room leader.");
             } else {
-                chatlog.unshift(displayName(players[data.source], true) + " voted for " + displayName(players[data.target], true) + ".");
+                chat(displayName(players[data.source], true) + " voted for " + displayName(players[data.target], true) + ".");
             }
         }
     }
@@ -231,6 +242,7 @@ socket.on("vote", function(data) {
 });
 
 socket.on("setRound", function(data) {
+    clearInterval(clock);
     round = data;
     console.log("Round status: " + round.status + " (round " + round.roundNum + ")");
     switch (round.status) {
@@ -252,7 +264,7 @@ socket.on("setRound", function(data) {
             break;
         default:
             clock = window.setInterval(updateTime, 500);
-            chatlog.unshift("<u>Start of Round " + round.roundNum + "</u>.");
+            chat("<u>Start of Round " + round.roundNum + "</u>.");
             genRoundData = ingameRoundData;
             genPlayerList = ingamePlayerList;
             break;
@@ -260,6 +272,8 @@ socket.on("setRound", function(data) {
 
     updateDisplay();
 });
+
+socket.on("setSettings", (data) => settings = data); 
 
 socket.on("updateRoom", function(data) {
     rooms["room" + player.room] = data;
@@ -272,14 +286,14 @@ socket.on("updateRoom", function(data) {
 socket.on("win", function(data) {
     win = data.winTeam == ROLES[player.role].team;
 
-    for (var pid of data.winGamblers) {
+    for (var pid of data.winGrey) {
         if (pid == player.id) {
             win = true;
             break;
         }
     }
 
-    chatlog.unshift("The " + data.winTeam + " team has won.");
+    chat("The " + data.winTeam + " team has won.");
     updateDisplay();
 });
 

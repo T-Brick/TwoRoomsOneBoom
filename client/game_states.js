@@ -52,7 +52,7 @@ ROLES = {
     "boom": {
         id: 120,
         display: "Dr. Boom",
-        description: "You have the BOOM power, when you card share with the president everyone in the room dies and the game ends. This doesn't work if you reveal (not share) your card to the president.",
+        description: "You have the BOOM power, when you card share with the president everyone in the room dies and the game ends.",
         team: TEAM.BLUE,
         goal: "Assist the president by having the president and the bomber in different rooms at the end of the game. Don't card share with the president.",
         endgame_pause_val: 0
@@ -84,7 +84,7 @@ ROLES = {
     "knight": {
         id: 220,
         display: "Tuesday Knight",
-        description: "You have the HUG power, when you card share with the bomber everyone in the room dies except the president and the game ends. This doesn't work if you reveal (not share) your card to the bomber.",
+        description: "You have the HUG power, when you card share with the bomber everyone in the room dies except the president and the game ends.",
         team: TEAM.RED,
         goal: "Assist the bomber by having the president and the bomber in the same room at the end of the game. Don't card share with the bomber.",
         endgame_pause_val: 0
@@ -104,6 +104,70 @@ ROLES = {
         team: TEAM.GREY,
         goal: "Correctly select which team is going to win the game at the end of the game.",
         endgame_pause_val: 10
+    },
+    "rival": {
+        id: 310,
+        display: "Rival",
+        description: "Try to end the game in the room without the president.",
+        team: TEAM.GREY,
+        goal: "End the game in the room without the president.",
+        endgame_pause_val: 0
+    },
+    "survivor": {
+        id: 311,
+        display: "Survivor",
+        description: "Try to end the game in the room without the bomber.",
+        team: TEAM.GREY,
+        goal: "End the game in the room without the bomber.",
+        endgame_pause_val: 0
+    },
+    "intern": {
+        id: 320,
+        display: "Intern",
+        description: "Try to end the game in the room with the president.",
+        team: TEAM.GREY,
+        goal: "End the game in the room with the president.",
+        endgame_pause_val: 0
+    },
+    "victim": {
+        id: 321,
+        display: "Victim",
+        description: "Try to end the game in the room with the bomber.",
+        team: TEAM.GREY,
+        goal: "End the game in the room with the bomber.",
+        endgame_pause_val: 0
+    },
+    "ahab": {
+        id: 330,
+        display: "Ahab",
+        description: "Kill Moby and survive to this time.",
+        team: TEAM.GREY,
+        goal: "End the game with moby in the same room as the bomber and you in the other room.",
+        endgame_pause_val: 0
+    },
+    "moby": {
+        id: 331,
+        display: "Moby",
+        description: "Kill Ahab and survive to win one for the whales.",
+        team: TEAM.GREY,
+        goal: "End the game with ahab in the same room as the bomber and you in the other room.",
+        endgame_pause_val: 0
+    },
+    "wife": {
+        id: 340,
+        display: "Wife",
+        description: "Stand by your vows by being with the president.",
+        team: TEAM.GREY,
+        goal: "End the game in the same room as the president but without the mistress there.",
+        endgame_pause_val: 0
+    },
+    "mistress": {
+        id: 341,
+        display: "Mistress",
+        description: "Feel the power in being the other women.",
+        team: TEAM.GREY,
+        goal: "End the game in the same room as the president but without the wife there.",
+        endgame_pause_val: 0
     }
 };
 
