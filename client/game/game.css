@@ -35,6 +35,9 @@ body {
     .column {
       width: 100%;
     }
+    .chat {
+        max-height: 400px;
+    }
 }
 
 .header {

@@ -3,50 +3,57 @@
         "std_dev": {
             "roundTimes": [0.5,0.5,0.5],
             "hostages": [1,1,1],
-            "oddGambler": true,
+            "balancing": "odd",
             "specialRoles": ["president", "bomber"],
+            "buriableRoles": [],
             "genericRoles": ["blue", "red"]
         },
         "std_small": {
             "roundTimes": [3,2,1],
             "hostages": [1,1,1],
-            "oddGambler": true,
+            "balancing": "odd",
             "specialRoles": ["president", "bomber"],
+            "buriableRoles": [],
             "genericRoles": ["blue", "red"]
         },
         "std_medium": {
             "roundTimes": [3,2,1],
             "hostages": [2,1,1],
-            "oddGambler": true,
+            "balancing": "odd",
             "specialRoles": ["president", "bomber"],
+            "buriableRoles": [],
             "genericRoles": ["blue", "red"]
         },
         "std_large": {
             "roundTimes": [3,2,1],
             "hostages": [3,2,1],
-            "oddGambler": true,
+            "balancing": "odd",
             "specialRoles": ["president", "bomber"],
+            "buriableRoles": [],
             "genericRoles": ["blue", "red"]
         },
         "instant_death": {
             "roundTimes": [3,2,1],
             "hostages": [1,1,1],
-            "oddGambler": true,
+            "balancing": "odd",
             "specialRoles": ["president", "bomber", "doctor", "engineer", "knight", "boom"],
+            "buriableRoles": [],
             "genericRoles": []
         },
         "one_loser": {
             "roundTimes": [3,2,1],
             "hostages": [1,1,1],
-            "oddGambler": true,
+            "balancing": "odd",
             "specialRoles": ["president", "bomber", "rival", "intern", "survivor", "victim"],
+            "buriableRoles": [],
             "genericRoles": []
         },
         "love_hate": {
             "roundTimes": [3,2,1],
             "hostages": [1,1,1],
-            "oddGambler": true,
+            "balancing": "odd",
             "specialRoles": ["president", "bomber", "ahab", "moby", "wife", "mistress"],
+            "buriableRoles": [],
             "genericRoles": []
         }
     },

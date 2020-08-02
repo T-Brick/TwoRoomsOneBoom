@@ -6,7 +6,7 @@ const args = process.argv.slice(2);
 const root_dir = __dirname;
 
 var dev = false;
-var port = 3000;
+var port = 80;
 
 var server = require("http").createServer(app);
 
@@ -52,7 +52,7 @@ var addPlayerData = function(socket, playerId, data) {
                 dead: false
             },
             private: {
-                role: "unknown",
+                role: ROLES.UNKNOWN,
                 role_knowledge: [],
                 sharing: [],
                 voting: [],
@@ -85,6 +85,7 @@ var createLobby = function(lobbyName) {
         endgame_pause: {
             gambler: []
         },
+        endgame_messages: [],
         ruleset: null,
         clock: null,
         rolesmap: {},
@@ -173,15 +174,19 @@ var assignRoles = function(lobby, rulegroup) {
     
     lobby.ruleset = ruleset;
 
+    var balanceVal;
+    if (ruleset["balancing"] == "odd") balanceVal = 1;
+    else if (ruleset["balancing"] == "even") balanceVal = 0;
+    else balanceVal = 2;
     var p;
     // assign gambler
-    if (ruleset["oddGambler"] && unassignedPlayers.length % 2 == 1) {
-        p = assignRole(unassignedPlayers, "gambler");
+    if (unassignedPlayers.length % 2 == balanceVal) {
+        p = assignRole(unassignedPlayers, rulegroup.balancing);
         if (p == null) return -1;
 
-        lobby.endgame_pause["gambler"].push(p.public.id);
-        if (lobby.rolesmap["gambler"] == null) lobby.rolesmap["gambler"] = [p.public.id];
-        else lobby.rolesmap["gambler"].push(p.public.id);
+        if (rulegroup.balancing == ROLES.GAMBLER) lobby.endgame_pause[rulegroup.balancing].push(p.public.id);
+        if (lobby.rolesmap[rulegroup.balancing] == null) lobby.rolesmap[rulegroup.balancing] = [p.public.id];
+        else lobby.rolesmap[rulegroup.balancing].push(p.public.id);
     }
 
     // special roles
@@ -189,10 +194,21 @@ var assignRoles = function(lobby, rulegroup) {
         p = assignRole(unassignedPlayers, ruleset["specialRoles"][i]);
         if (p == null) return 1;
 
-        if (ROLES[ruleset["specialRoles"][i]].endgame_pause_val > 0)
+        if (ROLE_INFO[ruleset["specialRoles"][i]].endgame_pause_val > 0)
             lobby.endgame_pause[ruleset["specialRoles"][i]].push(p.public.id);
         if (lobby.rolesmap[ruleset["specialRoles"][i]] == null) lobby.rolesmap[ruleset["specialRoles"][i]] = [p.public.id];
         else lobby.rolesmap[ruleset["specialRoles"][i]].push(p.public.id);
+    }
+
+    // special buriable roles
+    for(i = 0; i < ruleset["buriableRoles"].length; i++) {
+        p = assignRole(unassignedPlayers, ruleset["buriableRoles"][i]);
+        if (p == null) return 1;
+
+        if (ROLE_INFO[ruleset["buriableRoles"][i]].endgame_pause_val > 0)
+            lobby.endgame_pause[ruleset["buriableRoles"][i]].push(p.public.id);
+        if (lobby.rolesmap[ruleset["buriableRoles"][i]] == null) lobby.rolesmap[ruleset["buriableRoles"][i]] = [p.public.id];
+        else lobby.rolesmap[ruleset["buriableRoles"][i]].push(p.public.id);
     }
 
     // generic roles
@@ -201,7 +217,7 @@ var assignRoles = function(lobby, rulegroup) {
         p = assignRole(unassignedPlayers, ruleset["genericRoles"][i]);
         if (p == null) return 1;
 
-        if (ROLES[ruleset["genericRoles"][i]].endgame_pause_val > 0)
+        if (ROLE_INFO[ruleset["genericRoles"][i]].endgame_pause_val > 0)
             lobby.endgame_pause[ruleset["genericRoles"][i]].push(p.public.id);
         if (lobby.rolesmap[ruleset["genericRoles"][i]] == null) lobby.rolesmap[ruleset["genericRoles"][i]] = [p.public.id];
         else lobby.rolesmap[ruleset["genericRoles"][i]].push(p.public.id);
@@ -230,7 +246,7 @@ var assignRooms = function(lobby) {
 var fillTransfer = function(lobbyName, startNum, endNum) {
     var lobby = lobbies[lobbyName];
     var start = lobby.rooms["room" + startNum];
-    var end = lobby.rooms["room" + endNum];
+    var transfer_list = [];
 
     var pid;
 
@@ -254,10 +270,11 @@ var fillTransfer = function(lobbyName, startNum, endNum) {
 
         players[pid].private.voting = [];
 
-        end.players.push(pid);
+        transfer_list.push(pid);
     }
 
     start.transfers = [];
+    return transfer_list;
 };
 
 var endRound = function(lobbyName) {
@@ -273,8 +290,10 @@ var endRound = function(lobbyName) {
 
     emitToLobby(lobby.name, "setRound", lobby.round);
 
-    fillTransfer(lobbyName, 1, 2);
-    fillTransfer(lobbyName, 2, 1);
+    var transfer_list_1 = fillTransfer(lobbyName, 1, 2);
+    var transfer_list_2 = fillTransfer(lobbyName, 2, 1);
+    lobby.rooms["room1"].players = lobby.rooms["room1"].players.concat(transfer_list_2);
+    lobby.rooms["room2"].players = lobby.rooms["room2"].players.concat(transfer_list_1);
 
     emitToLobby(lobbyName, "assignRooms", lobby.rooms);
     if (lobby.round.status == ROUND.POSTGAME) {
@@ -288,7 +307,7 @@ var makeEndgameDecision = function(playerId, data) {
 
     var i;
     switch (players[playerId].private.role) {
-        case "gambler":
+        case ROLES.GAMBLER:
             var gamblers = lobbies[players[playerId].public.lobby].endgame_pause.gambler;
             i = gamblers.indexOf(playerId);
             if (i >= 0) {
@@ -321,84 +340,231 @@ var endGame = function(lobbyName) {
         emitToLobby(lobbyName, "revealRole", roleData);
     });
 
-    var bomberRoom = players[lobby.rolesmap["bomber"][0]].public.room;
-    var presidentRoom = players[lobby.rolesmap["president"][0]].public.room;
+    var bomberRoom = players[lobby.rolesmap[ROLES.BOMBER][0]].public.room;
+    var presidentRoom = players[lobby.rolesmap[ROLES.PRESIDENT][0]].public.room;
     var results = {
         winTeam: null,
         winGrey: []
     };
 
-    if (lobby.rolesmap["engineer"] != null) {
-        var i = players[lobby.rolesmap["bomber"][0]].private.role_knowledge.indexOf(lobby.rolesmap["engineer"][0]);
-        var j = players[lobby.rolesmap["engineer"][0]].private.role_knowledge.indexOf(lobby.rolesmap["bomber"][0]);
+    if (lobby.rolesmap[ROLES.ENGINEER] != null) {
+        var i = players[lobby.rolesmap[ROLES.BOMBER][0]].private.role_knowledge.indexOf(lobby.rolesmap[ROLES.ENGINEER][0]);
+        var j = players[lobby.rolesmap[ROLES.ENGINEER][0]].private.role_knowledge.indexOf(lobby.rolesmap[ROLES.BOMBER][0]);
         lobby.rooms["room" + bomberRoom].players.forEach(pid => {
             var dead = players[pid].public.dead;
             players[pid].public.dead = dead || (i >= 0 && j>= 0);
         });
+        if (i >= 0 && j >= 0) {
+            lobby.endgame_messages.push(displayName(players[lobby.rolesmap[ROLES.ENGINEER][0]].public, true) 
+                + " (the " + ROLE_INFO[ROLES.ENGINEER].display + ") met " 
+                + displayName(players[lobby.rolesmap[ROLES.BOMBER][0]].public, true)
+                + " (the " + ROLE_INFO[ROLES.BOMBER].display + ") so the bomb was fixed, allowing it to explode.");
+        } else {
+            lobby.endgame_messages.push(displayName(players[lobby.rolesmap[ROLES.ENGINEER][0]].public, true) 
+                + " (the " + ROLE_INFO[ROLES.ENGINEER].display + ") didn't meet " 
+                + displayName(players[lobby.rolesmap[ROLES.BOMBER][0]].public, true)
+                + " (the " + ROLE_INFO[ROLES.BOMBER].display + ") so the bomb wasn't fixed.");
+        }
+    } else {
+        lobby.rooms["room" + bomberRoom].players.forEach(pid => players[pid].public.dead = true);
     }
-    if (lobby.rolesmap["doctor"] != null) {
-        var i = players[lobby.rolesmap["president"][0]].private.role_knowledge.indexOf(lobby.rolesmap["doctor"][0]);
-        var j = players[lobby.rolesmap["doctor"][0]].private.role_knowledge.indexOf(lobby.rolesmap["president"][0]);
-        var dead = players[lobby.rolesmap["president"][0]].public.dead
-        players[lobby.rolesmap["president"][0]].public.dead = dead || (i < 0 || j < 0);
+
+    if (lobby.rolesmap[ROLES.DOCTOR] != null) {
+        var i = players[lobby.rolesmap[ROLES.PRESIDENT][0]].private.role_knowledge.indexOf(lobby.rolesmap[ROLES.DOCTOR][0]);
+        var j = players[lobby.rolesmap[ROLES.DOCTOR][0]].private.role_knowledge.indexOf(lobby.rolesmap[ROLES.PRESIDENT][0]);
+        var dead = players[lobby.rolesmap[ROLES.PRESIDENT][0]].public.dead
+        players[lobby.rolesmap[ROLES.PRESIDENT][0]].public.dead = dead || (i < 0 || j < 0);
+        if (i < 0 && j < 0) {
+            lobby.endgame_messages.push(displayName(players[lobby.rolesmap[ROLES.DOCTOR][0]].public, true) 
+                + " (the " + ROLE_INFO[ROLES.DOCTOR].display + ") didn't meet " 
+                + displayName(players[lobby.rolesmap[ROLES.PRESIDENT][0]].public, true)
+                + " (the " + ROLE_INFO[ROLES.PRESIDENT].display + ") so they were not healed.");
+        } else {
+            lobby.endgame_messages.push(displayName(players[lobby.rolesmap[ROLES.DOCTOR][0]].public, true) 
+                + " (the " + ROLE_INFO[ROLES.DOCTOR].display + ") met " 
+                + displayName(players[lobby.rolesmap[ROLES.PRESIDENT][0]].public, true)
+                + " (the " + ROLE_INFO[ROLES.PRESIDENT].display + ") and healed them.");
+        }
     }
-    results.winTeam = players[lobby.rolesmap["president"][0]].public.dead ? TEAM.RED : TEAM.BLUE;
+    results.winTeam = players[lobby.rolesmap[ROLES.PRESIDENT][0]].public.dead ? TEAM.RED : TEAM.BLUE;
 
     // WC: picking the right team
-    if (lobby.rolesmap["gambler"] != null) {
-        lobby.rolesmap["gambler"].forEach(pid => {
-            if (players[pid].private.endgame_choice == results.winTeam)
+    if (lobby.rolesmap[ROLES.GAMBLER] != null) {
+        lobby.rolesmap[ROLES.GAMBLER].forEach(pid => {
+            if (players[pid].private.endgame_choice == results.winTeam) {
                 results.winGrey.push(pid);
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.GAMBLER].display + ") selected the right team and won.");
+            } else {
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.GAMBLER].display + ") selected the wrong team and lost.");
+            }
+        });
+    }
+    // WC: card sharing with president and bomber
+    if (lobby.rolesmap[ROLES.MI6] != null) {
+        lobby.rolesmap[ROLES.MI6].forEach(pid => {
+            if (players[pid].private.role_knowledge.indexOf(lobby.rolesmap[ROLES.PRESIDENT][0]) >= 0
+            &&  players[pid].private.role_knowledge.indexOf(lobby.rolesmap[ROLES.BOMBER][0]) >= 0) {
+                results.winGrey.push(pid);
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.MI6].display + ") met both " 
+                    + displayName(players[lobby.rolesmap[ROLES.PRESIDENT][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.PRESIDENT].display + ") and "
+                    + displayName(players[lobby.rolesmap[ROLES.BOMBER][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.BOMBER].display + ") so they won.");
+            } else {
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.MI6].display + ") didn't meet both " 
+                    + displayName(players[lobby.rolesmap[ROLES.PRESIDENT][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.PRESIDENT].display + ") and "
+                    + displayName(players[lobby.rolesmap[ROLES.BOMBER][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.BOMBER].display + ") so they lost.");
+            }
         });
     }
     // WC: dif room than pres
-    if (lobby.rolesmap["rival"] != null) {
-        lobby.rolesmap["rival"].forEach(pid => {
-            if (players[pid].public.room != presidentRoom)
+    if (lobby.rolesmap[ROLES.RIVAL] != null) {
+        lobby.rolesmap[ROLES.RIVAL].forEach(pid => {
+            if (players[pid].public.room != presidentRoom) {
                 results.winGrey.push(pid);
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.RIVAL].display + ") ended in a different room than " 
+                    + displayName(players[lobby.rolesmap[ROLES.PRESIDENT][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.PRESIDENT].display + ") so they won.");
+            } else {
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.RIVAL].display + ") ended in the same room as " 
+                    + displayName(players[lobby.rolesmap[ROLES.PRESIDENT][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.PRESIDENT].display + ") so they lost.");
+            }
         });
     }
     // WC: dif room than bomber
-    if (lobby.rolesmap["survivor"] != null) {
-        lobby.rolesmap["survivor"].forEach(pid => {
-            if (players[pid].public.room != bomberRoom)
+    if (lobby.rolesmap[ROLES.SURVIVOR] != null) {
+        lobby.rolesmap[ROLES.SURVIVOR].forEach(pid => {
+            if (players[pid].public.room != bomberRoom) {
                 results.winGrey.push(pid);
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.SURVIVOR].display + ") ended in a different room than " 
+                    + displayName(players[lobby.rolesmap[ROLES.BOMBER][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.BOMBER].display + ") so they won.");
+            } else {
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.SURVIVOR].display + ") ended in the same room as " 
+                    + displayName(players[lobby.rolesmap[ROLES.BOMBER][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.BOMBER].display + ") so they lost.");
+            }
         });
     }
     // WC: same room as pres
-    if (lobby.rolesmap["intern"] != null) {
-        lobby.rolesmap["intern"].forEach(pid => {
-            if (players[pid].public.room == presidentRoom)
+    if (lobby.rolesmap[ROLES.INTERN] != null) {
+        lobby.rolesmap[ROLES.INTERN].forEach(pid => {
+            if (players[pid].public.room == presidentRoom) {
                 results.winGrey.push(pid);
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.INTERN].display + ") ended in a same room as " 
+                    + displayName(players[lobby.rolesmap[ROLES.PRESIDENT][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.PRESIDENT].display + ") so they won.");
+            } else {
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.INTERN].display + ") ended in a different room than " 
+                    + displayName(players[lobby.rolesmap[ROLES.PRESIDENT][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.PRESIDENT].display + ") so they lost.");
+            }
         });
     }
     // WC: same room as bomber
-    if (lobby.rolesmap["victim"] != null) {
-        lobby.rolesmap["victim"].forEach(pid => {
-            if (players[pid].public.room == bomberRoom)
+    if (lobby.rolesmap[ROLES.VICTIM] != null) {
+        lobby.rolesmap[ROLES.VICTIM].forEach(pid => {
+            if (players[pid].public.room == bomberRoom) {
                 results.winGrey.push(pid);
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.VICTIM].display + ") ended in a same room as " 
+                    + displayName(players[lobby.rolesmap[ROLES.BOMBER][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.BOMBER].display + ") so they won.");
+            } else {
+                lobby.endgame_messages.push(displayName(players[pid].public, true) 
+                    + " (the " + ROLE_INFO[ROLES.VICTIM].display + ") ended in a different room than " 
+                    + displayName(players[lobby.rolesmap[ROLES.BOMBER][0]].public, true)
+                    + " (the " + ROLE_INFO[ROLES.BOMBER].display + ") so they lost.");
+            }
         });
     }
     // WC: ahab - moby with bomber without self; moby - ahab with bomber without self
-    if (lobby.rolesmap["ahab"] != null && lobby.rolesmap["moby"] != null) {
-        var ahabRoom = players[lobby.rolesmap["ahab"][0]].public.room;
-        var mobyRoom = players[lobby.rolesmap["moby"][0]].public.room;
-        if (ahabRoom != bombRoom && mobyRoom == bombRoom) results.winGrey.push(lobby.rolesmap["ahab"][0]);
-        if (mobyRoom != bombRoom && ahabRoom == bombRoom) results.winGrey.push(lobby.rolesmap["moby"][0]);
+    if (lobby.rolesmap[ROLES.AHAB] != null && lobby.rolesmap[ROLES.MOBY] != null) {
+        var ahabRoom = players[lobby.rolesmap[ROLES.AHAB][0]].public.room;
+        var mobyRoom = players[lobby.rolesmap[ROLES.MOBY][0]].public.room;
+        if (ahabRoom != bombRoom && mobyRoom == bombRoom) {
+            results.winGrey.push(lobby.rolesmap[ROLES.AHAB][0]);
+            lobby.endgame_messages.push(displayName(players[lobby.rolesmap[ROLES.BOMBER][0]].public, true) 
+                + " (the " + ROLE_INFO[ROLES.BOMBER].display + ") killed " 
+                + displayName(players[lobby.rolesmap[ROLES.MOBY][0]].public, true)
+                + " (" + ROLE_INFO[ROLES.MOBY].display + ") but not "
+                + displayName(players[lobby.rolesmap[ROLES.AHAB][0]].public, true)
+                + " (" + ROLE_INFO[ROLES.AHAB].display + ") so "
+                + displayName(players[lobby.rolesmap[ROLES.AHAB][0]].public, true)
+                + " won.");
+        } else if (mobyRoom != bombRoom && ahabRoom == bombRoom) {
+            results.winGrey.push(lobby.rolesmap[ROLES.MOBY][0]);
+            lobby.endgame_messages.push(displayName(players[lobby.rolesmap[ROLES.BOMBER][0]].public, true) 
+                + " (the " + ROLE_INFO[ROLES.BOMBER].display + ") killed " 
+                + displayName(players[lobby.rolesmap[ROLES.AHAB][0]].public, true)
+                + " (" + ROLE_INFO[ROLES.AHAB].display + ") but not "
+                + displayName(players[lobby.rolesmap[ROLES.MOBY][0]].public, true)
+                + " (" + ROLE_INFO[ROLES.MOBY].display + ") so "
+                + displayName(players[lobby.rolesmap[ROLES.MOBY][0]].public, true)
+                + " won.");
+        } else {
+            lobby.endgame_messages.push(displayName(players[lobby.rolesmap[ROLES.AHAB][0]].public, true)
+                + " (" + ROLE_INFO[ROLES.AHAB].display + ") and "
+                + displayName(players[lobby.rolesmap[ROLES.MOBY][0]].public, true)
+                + " (" + ROLE_INFO[ROLES.MOBY].display + ") both lost.");
+        }
     }
     // WC: wife - with president without mistress; mistress - with president without wife
-    if (lobby.rolesmap["wife"] != null && lobby.rolesmap["mistress"] != null) {
-        var mistressRoom = players[lobby.rolesmap["mistress"][0]].public.room;
-        var wifeRoom = players[lobby.rolesmap["wife"][0]].public.room;
-        if (wifeRoom != presidentRoom && mistressRoom == presidentRoom) results.winGrey.push(lobby.rolesmap["mistress"][0]);
-        if (mistressRoom != presidentRoom && wifeRoom == presidentRoom) results.winGrey.push(lobby.rolesmap["wife"][0]);
+    if (lobby.rolesmap[ROLES.WIFE] != null && lobby.rolesmap[ROLES.MISTRESS] != null) {
+        var mistressRoom = players[lobby.rolesmap[ROLES.MISTRESS][0]].public.room;
+        var wifeRoom = players[lobby.rolesmap[ROLES.WIFE][0]].public.room;
+        if (wifeRoom != presidentRoom && mistressRoom == presidentRoom) {
+            results.winGrey.push(lobby.rolesmap[ROLES.MISTRESS][0]);
+            lobby.endgame_messages.push(displayName(players[lobby.rolesmap[ROLES.MISTRESS][0]].public, true) 
+                + " (the " + ROLE_INFO[ROLES.MISTRESS].display + ") is in the same room as " 
+                + displayName(players[lobby.rolesmap[ROLES.PRESIDENT][0]].public, true)
+                + " (the " + ROLE_INFO[ROLES.PRESIDENT].display + ") but not "
+                + displayName(players[lobby.rolesmap[ROLES.WIFE][0]].public, true)
+                + " (the " + ROLE_INFO[ROLES.WIFE].display + ") so "
+                + displayName(players[lobby.rolesmap[ROLES.MISTRESS][0]].public, true)
+                + " won.");
+            
+        } else if (mistressRoom != presidentRoom && wifeRoom == presidentRoom) {
+            results.winGrey.push(lobby.rolesmap[ROLES.WIFE][0]);
+            lobby.endgame_messages.push(displayName(players[lobby.rolesmap[ROLES.WIFE][0]].public, true) 
+                + " (the " + ROLE_INFO[ROLES.WIFE].display + ") is in the same room as " 
+                + displayName(players[lobby.rolesmap[ROLES.PRESIDENT][0]].public, true)
+                + " (the " + ROLE_INFO[ROLES.PRESIDENT].display + ") but not "
+                + displayName(players[lobby.rolesmap[ROLES.MISTRESS][0]].public, true)
+                + " (the " + ROLE_INFO[ROLES.MISTRESS].display + ") so "
+                + displayName(players[lobby.rolesmap[ROLES.WIFE][0]].public, true)
+                + " won.");
+        } else {
+            lobby.endgame_messages.push(displayName(players[lobby.rolesmap[ROLES.MISTRESS][0]].public, true)
+                + " (" + ROLE_INFO[ROLES.MISTRESS].display + ") and "
+                + displayName(players[lobby.rolesmap[ROLES.WIFE][0]].public, true)
+                + " (" + ROLE_INFO[ROLES.WIFE].display + ") both lost.");
+        }
     }
+
+    results.endgame_messages = lobby.endgame_messages;
 
     emitToLobby(lobbyName, "win", results);
     for (var pid of lobby.players) {
         playerNames[players[pid].public.name] = null;
         players[pid] = null;
     }
+
+    console.log("Lobby " + lobbyName + " has finished.");
+
     lobbies[lobbyName] = null;
     delete lobbies[lobbyName];
 };
@@ -408,24 +574,27 @@ var roleShareSpecial = function(playerId, targetId) {
     var lobby = lobbies[players[playerId].public.lobby];
     var room = lobby.rooms["room" + players[playerId].public.room]
     switch (players[playerId].private.role) {
-        case "boom":
-            if (targetRole == "president") {
+        case ROLES.BOOM:
+            if (targetRole == ROLES.PRESIDENT) {
                 clearInterval(lobby.clock);
                 lobby.round.roundNum = lobby.round.maxRoundNum;
                 room.players.forEach((pid) => players[pid].public.dead = true);
-                
+
+                lobby.endgame_messages.push(ROLE_INFO[ROLES.BOOM].display + " has met the " + ROLE_INFO[ROLES.PRESIDENT] + " and blew up!") ;
                 endRound(lobby.name);
             }
             break;
-        case "knight":
-            if (targetRole == "bomber") {
+        case ROLES.KNIGHT:
+            if (targetRole == ROLES.BOMBER) {
                 clearInterval(lobby.clock);
                 lobby.round.roundNum = lobby.round.maxRoundNum;
                 room.players.forEach((pid) => {
-                    if (players[pid].private.role != "president") 
+                    if (players[pid].private.role != ROLES.PRESIDENT) 
                         players[pid].public.dead = true;
                 });
 
+                lobby.endgame_messages.push(ROLE_INFO[ROLES.KNIGHT].display + " has met the " + ROLE_INFO[ROLES.BOMBER] 
+                    + " and blew them up, saving the president!") ;
                 endRound(lobby.name);
             }
             break;
@@ -509,6 +678,7 @@ io.sockets.on("connection", function(socket) {
         if (players[playerId].public.host) {
             var lobby = lobbies[players[playerId].public.lobby];
             if (data.gamemode == null) data.gamemode = "Standard";
+            if (data.balancing == null) data.balancing = ROLES.GAMBLER;
             if (assignRoles(lobby, data) < 0) {
                 return;
             }
@@ -645,6 +815,7 @@ io.sockets.on("connection", function(socket) {
             emitToRoom(players[playerId].public.lobby, data.room, "vote", data);
         } else {
             players[playerId].private.voting.splice(i, 1);
+            players[data.target].public.votes--;
 
             if (players[data.target].public.votes == 0)
                 players[data.target].public.leader = LEADER.NONE;

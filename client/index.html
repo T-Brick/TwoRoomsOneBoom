@@ -1,7 +1,7 @@
 <html>
 
 <head>
-    <title>Test</title>
+    <title>Two Rooms and a Boom</title>
     <link rel="stylesheet" href="/client/join.css">
     <link href="https://fonts.googleapis.com/css?family=Open+Sans:700,600" rel="stylesheet" type="text/css">
     <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css" type="text/css">
@@ -12,7 +12,7 @@
 
 <body onload="isPlayerKnown()">
     <div class="box">
-        <div>Title Text</div>
+        <div class="title">Two Rooms and a Boom</div>
         <form id="join-form">
             <p>
                 <input id="name-input" type="text" style="width:30%;height:30px;" placeholder="NAME" autocomplete="off"></input>
@@ -21,9 +21,11 @@
                 <input id="lobby-input" type="text" style="width:30%;height:30px;" placeholder="LOBBY" autocomplete="off"></input>
             </p>
             <input class="btn" type="submit" value="Join"></input>
-            <input class="btn" type="button" value="TEMP Clear User" onclick="setCookie('username', '', -1); setCookie('uid', '', -1);"></input>
+            <input class="btn" type="button" value="Clear User Data" onclick="setCookie('username', '', -1); setCookie('uid', '', -1); window.location.href = './'"></input>
         </form>
-        <div id="error"></div>
+        <div class="tutorial">
+            <a href="https://www.tuesdayknightgames.com/howtoplaytworooms">How to Play</a>
+        </div>
     </div>
     <script src="/client/join.js"></script>
 </body>

@@ -1,10 +1,10 @@
-var setCookie = function(name, val, exp_days) {
+const setCookie = function(name, val, exp_days) {
     var d = new Date();
     d.setTime(d.getTime() + (exp_days * 24 * 60 * 60 * 1000));
     document.cookie = name + "=" + val + ";expires=" + d.toGMTString() + ";SameSite=Strict;path=/";
 };
 
-var getCookie = function(name) {
+const getCookie = function(name) {
     name = name + "=";
     var ca = decodeURIComponent(document.cookie).split(";");
     for (var i = 0; i < ca.length; i++) {
@@ -17,9 +17,9 @@ var getCookie = function(name) {
     return "";
 };
 
-var copyLink = function() {
+const copyLink = function() {
     var copyText = document.getElementById("copylink");
     copyText.select();
     copyText.setSelectionRange(0, 99999)
     document.execCommand("copy");
-  }
+}

@@ -14,7 +14,7 @@ var player = {
     votes: 0,
     transfer: false,
     // local vars
-    role: "unknown", 
+    role: ROLES.UNKNOWN, 
     vote_for: false,
     revealed: false,
     revealed_for: [],
@@ -43,11 +43,11 @@ var chat = (msg) => chatlog.push(msg);
 
 var startGame = function() {
     if (player.host) {
-        console.log(revealing_disp.checked);
         var data = {
             gamemode: gamemode_list_disp.value,
             spectating: false, // todo: implement
-            revealing: revealing_disp.checked
+            revealing: revealing_disp.checked,
+            balancing: balancing_disp.value
         };
         socket.emit("startGame", data);
     }
@@ -111,7 +111,7 @@ var startRound = function() {
 }
 
 var gamblerVote = function(team) {
-    if (ROLES[player.role].id == ROLES["gambler"].id) {
+    if (ROLE_INFO[player.role].id == ROLE_INFO["gambler"].id) {
         data = {
             id: player.id,
             team: team
@@ -142,7 +142,7 @@ socket.on("playerLeave", function(data) {
 
 socket.on("userData", function(data) {
     player = data;
-    player.role = "unknown"; 
+    player.role = ROLES.UNKNOWN; 
     player.vote_for = false;
     player.revealed = false;
     player.revealed_for = [];
@@ -153,7 +153,7 @@ socket.on("userData", function(data) {
 
 socket.on("assignRole", function(data) {
     lobby_status = LOBBY_STATUS.STARTING;
-    role = ROLES[data];
+    role = ROLE_INFO[data];
     player.role = data;
     players[player.id].role = data;
     chat("Assigned role: " + role["display"]);
@@ -165,9 +165,6 @@ socket.on("assignRooms", function(data) {
     rooms = data;
     for (var i of [1,2]) {
         for (var pid of rooms["room" + i].players) {
-            // if (players[pid].transfer) {
-            //     chat(displayName(players[pid]) + " was transferred.");
-            // }
             players[pid].room = i;
             players[pid].transfer = false;
             players[pid].votes = 0;
@@ -277,14 +274,21 @@ socket.on("setSettings", (data) => settings = data);
 
 socket.on("updateRoom", function(data) {
     rooms["room" + player.room] = data;
+    var trans;
     for (var pid of data.players) {
+        trans = players[pid].transfer;
         players[pid].transfer = data.transfers.indexOf(pid) >= 0;
+        if (trans && !players[pid].transfer) {
+            chat(displayName(players[pid], true) + " is no longer selected for transfer.");
+        } else if (!trans && players[pid].transfer) {
+            chat(displayName(players[pid], true) + " is now selected for transfer.");
+        }
     }
     updateDisplay();
 });
 
 socket.on("win", function(data) {
-    win = data.winTeam == ROLES[player.role].team;
+    win = data.winTeam == ROLE_INFO[player.role].team;
 
     for (var pid of data.winGrey) {
         if (pid == player.id) {
@@ -293,7 +297,10 @@ socket.on("win", function(data) {
         }
     }
 
+    data.endgame_messages.forEach(chat);
+    chat("");
     chat("The " + data.winTeam + " team has won.");
+    
     updateDisplay();
 });
 

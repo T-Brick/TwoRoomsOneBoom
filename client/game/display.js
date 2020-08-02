@@ -4,6 +4,7 @@ var playersTitle = document.getElementById("playersTitle");
 // settings
 var settings_disp = document.getElementById("settings");
 var gamemode_list_disp = document.getElementById("gamemode_list");
+var balancing_disp = document.getElementById("balancing_list");
 var revealing_disp = document.getElementById("revealing");
 
 // preround
@@ -31,16 +32,6 @@ var gambler_disp = document.getElementById("gambler");
 var postgameBox_disp = document.getElementById("postgameBox");
 var win_disp = document.getElementById("you_win");
 var lose_disp = document.getElementById("you_lose");
-
-const displayName = function(player, bold = false) {
-    var name;
-    if (player.anonymous) name = missingNameTitle + " " + player.name;
-    else name = player.name;
-
-    if (bold) name = "<b>" + name + "</b>";
-
-    return name;
-}
 
 const lobbyPlayerList = function(html) {
     var pname;
@@ -74,7 +65,7 @@ const pregameRoundPlayerList = function(html) {
             html += "<div id='ingame_player_name'>" + pname + "</div>";
             html += "</div>";
 
-            var disp_role = "<div id='ingame_player_role'>" + ROLES[p.role].display + "</div>";
+            var disp_role = "<div id='ingame_player_role'>" + ROLE_INFO[p.role].display + "</div>";
             html += "<div class='ingame ingame_player_role_group'>";
             html += disp_role;
             html += "</div>";
@@ -126,7 +117,7 @@ const ingamePlayerList = function(html) {
         }
         html += "</div>";
 
-        var disp_role = "<div id='ingame_player_role'>" + ROLES[p.role].display + "</div>";
+        var disp_role = "<div id='ingame_player_role'>" + ROLE_INFO[p.role].display + "</div>";
         html += "<div class='ingame ingame_player_role_group'>";
         
         if (p.id != player.id) {
@@ -171,7 +162,7 @@ const endgamePlayerList = function(html) {
             html += "</div>";
 
             html += "<div class='ingame ingame_player_role_group'>";
-            html += "<div id='ingame_player_role'>" + ROLES[p.role].display + "</div>";
+            html += "<div id='ingame_player_role'>" + ROLE_INFO[p.role].display + "</div>";
             html += "</div>";
 
             html += "</div>";
