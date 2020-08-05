@@ -26,6 +26,10 @@ socket.on("joinGame", function(data) {
 
 joinForm.onsubmit = function(e) {
     e.preventDefault();
+    if (lobbyInput.value == null || lobbyInput.value.trim() == "")
+        return;
+    if (nameInput.value == null || nameInput.value.trim() == "")
+        return;
     if (known) {
         window.location.href = "./game/" + lobbyInput.value;
         return;

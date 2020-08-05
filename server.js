@@ -13,7 +13,9 @@ var server = require("http").createServer(app);
 const joinURL = root_dir + "/client/index.html";
 const gameURL = root_dir + "/client/game/index.html";
 const gameFailURL = root_dir + "/client/game/failed.html";
+const pageNotFoundURL = root_dir + "/client/404.html";
 const game_settings = require("./game_settings.json");
+require("./client/roles.js");
 require("./client/game_states.js");
 const xssSettings = {
     whiteList: ["b", "i", "u", "em", "strong"],
@@ -29,7 +31,7 @@ var addPlayerData = function(socket, playerId, data) {
     var playerName = xss(data.playerName, xssSettings);
     var lobbyName = data.lobbyName;
     var anonymous = data.anonymous;
-    if (playerName == "")
+    if (playerName == null || playerName.trim() == "")
         return CONNECTION.INVALID;
     
     if (lobbies[lobbyName] != null && lobbies[lobbyName].status != LOBBY_STATUS.PRE_GAME) {
@@ -616,12 +618,19 @@ app.get("/game/:lobbyName", function(req, res) {
     res.sendFile(gameFailURL);
 });
 
+app.get("/game", function(req, res) {
+    res.sendFile(gameFailURL);
+});
+
 app.get("/", function(req, res) {
     res.sendFile(joinURL);
 });
 
 app.use("/client", express.static(root_dir + "/client"));
 
+app.get('*', function(req, res){
+    res.sendFile(pageNotFoundURL);
+});
 
 var io = require("socket.io")(server);
 io.sockets.on("connection", function(socket) {
@@ -629,8 +638,13 @@ io.sockets.on("connection", function(socket) {
     var playerId = uniqid();
 
     socket.on("joinGame", function(data) {
-       var uid = addPlayerData(socket, playerId, data);
-       emitToPlayer(playerId, "joinGame", uid);
+        if (data == null || data.playerName == null || data.lobbyName == null)
+            return;
+        if (data.anonymous || data.lobbyName.trim() == "" || data.playerName.trim() == "")
+            return; // data was messed with
+
+        var uid = addPlayerData(socket, playerId, data);
+        emitToPlayer(playerId, "joinGame", uid);
     });
 
     socket.on("userData", function(data) {
